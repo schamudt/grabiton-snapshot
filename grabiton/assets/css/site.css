@@ -1,0 +1,400 @@
+/* GrabItOn – Shell/Content-Trennung + Sidebar-Toggle + Mute-UI + Header-Strip-Buttons */
+
+:root{
+  --brand: #2b5dff;
+  --accent: #0486aa;
+  --bg-deep: #030d2f;
+  --text: #e8eefc;
+  --text-dim: #b7c1e6;
+
+  --glass-bg: rgba(10, 15, 40, 0.45);
+  --glass-stroke: rgba(255,255,255,0.08);
+  --glass-shadow: rgba(0,0,0,0.35);
+  --blur: 18px;
+
+  --header-h: 120px;
+  --footer-h: 56px;
+  --player-h: 74px;
+
+  --sidebar-w: 250px;
+  --sidebar-handle: 22px;
+
+  --gap: 18px;
+  --card-w: 160px; /* Basisbreite – per Karussell überschrieben */
+
+  --sidebar-visible-w: var(--sidebar-w);
+}
+
+/* Reset/Basics */
+*{ box-sizing: border-box; }
+html, body{ height:100%; }
+body{
+  margin:0; background: var(--bg-deep); color: var(--text);
+  font: 400 15px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+a{ color:inherit; text-decoration:none; }
+a:hover{ text-decoration:underline; }
+.visually-hidden{
+  position:absolute !important; width:1px;height:1px; padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+}
+
+/* Fixe SHELL */
+.gio-shell{ position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+.gio-shell .glass{
+  pointer-events: auto;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--glass-stroke);
+  box-shadow: 0 8px 24px -12px var(--glass-shadow);
+}
+
+/* Header */
+.gio-header{
+  position: absolute; left: 0; top: 0; right: 0; height: var(--header-h);
+  border-bottom: 1px solid var(--glass-stroke);
+  display:flex; align-items:center;
+  overflow: visible; /* Strip-Buttons dürfen nach oben überstehen */
+}
+.gio-header-row{
+  width:100%;
+  display:grid;
+  grid-template-columns: var(--sidebar-w) 1fr max-content;
+  align-items:center;
+  gap: 16px;
+  padding: 10px 18px;
+}
+.gio-logo{
+  width: var(--sidebar-w);
+  height: calc(var(--header-h) - 28px);
+  display:flex; align-items:center;
+}
+.gio-logo img{ display:block; width:100%; height:100%; object-fit:contain; }
+
+.gio-header-center{ display:flex; justify-content:center; align-items:center; }
+
+/* Actions rechts (Strip-Buttons) */
+.gio-header-actions{
+  display:flex; gap:10px; flex-wrap: wrap; pointer-events: auto;
+  position: absolute; right: 10px; top: 14px; z-index: 50;
+}
+
+/* ========= STRIP-BUTTONS (oben offen), jetzt OHNE Rundungen ========= */
+.gio-btn{
+  --btn-bg: rgba(255,255,255,0.06);
+  --btn-bd: rgba(255,255,255,0.16);
+  position: relative;
+  display:inline-flex; align-items:center; justify-content:center;
+  gap:8px; padding:10px 14px;
+  color:#fff; font-weight:600; text-decoration:none;
+  border: none;
+  border-radius: 0;           /* Rundungen entfernt */
+  transform: translateY(-20%);
+  transition: transform .18s ease;
+  overflow: visible;
+}
+.gio-btn.-primary{
+  --btn-bg: rgba(4,134,170,0.65);     /* Glasige Akzentfarbe */
+  --btn-bd: rgba(4,134,170,0.75);
+}
+/* farbiger Streifen nach oben */
+.gio-btn::before{
+  content:"";
+  position:absolute; left:0; right:0;
+  bottom:0; top:-120vh;
+  background: var(--btn-bg);
+  z-index:-1;
+  box-shadow: 0 10px 24px -12px rgba(0,0,0,.35);
+  backdrop-filter: blur(6px);           /* dezente Glasoptik */
+}
+/* Rahmen (links/rechts+unten), oben offen; Ecken NICHT gerundet */
+.gio-btn::after{
+  content:"";
+  position:absolute; left:-1px; right:-1px;
+  bottom:-1px; top:-120vh;
+  border-left: 1px solid var(--btn-bd);
+  border-right: 1px solid var(--btn-bd);
+  border-bottom: 1px solid var(--btn-bd);
+  border-top: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  z-index:-1;
+}
+.gio-btn:hover{ transform: translateY(40%); }
+
+/* Suche */
+.gio-search{ width: min(56vw, 640px); }
+.gio-search input{
+  width:100%; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--glass-stroke);
+  background: rgba(255,255,255,0.06); color: var(--text);
+}
+.gio-search input::placeholder{ color: rgba(232,238,252,0.45); }
+.gio-search input:focus{ border-color: rgba(43,93,255,0.5); background: rgba(255,255,255,0.08); }
+
+/* Sidebar */
+.gio-sidebar{
+  position: absolute; left: 0; top: var(--header-h);
+  width: var(--sidebar-w); bottom: var(--footer-h);
+  border-right: 1px solid var(--glass-stroke);
+  overflow: visible;
+  transition: transform .28s cubic-bezier(.2,.8,.2,1);
+  will-change: transform;
+  padding-right: 0;
+  z-index: 40;
+}
+.gio-sidebar-pane{ width: var(--sidebar-w); height: 100%; padding: 22px 16px; }
+.gio-nav{ display:flex; flex-direction:column; gap:6px; margin-top: 14px; }
+.gio-navlink{
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius: 10px;
+  color: var(--text-dim); transition: background .14s ease, color .14s ease;
+}
+.gio-navlink:hover{ background: rgba(255,255,255,0.06); color:#fff; }
+.gio-navlink.is-active{ color:#fff; }
+
+/* Sidebar-Toggle-Button – kleines abgerundetes Quadrat */
+.gio-side-toggle{
+  position: absolute; right: -8px;
+  bottom: calc(var(--player-h) + 12px);
+  z-index: 120;
+  width: var(--sidebar-handle); height: var(--sidebar-handle);
+  display:grid; place-items:center;
+  border-radius: 6px;
+  border: 1px solid var(--glass-stroke);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(12px);
+  cursor:pointer;
+  transition: background .14s ease, border-color .14s ease, transform .28s ease;
+}
+.gio-side-toggle:hover{ background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.18); }
+.gio-side-toggle svg{ width:14px; height:14px; fill:#fff; }
+body.sidebar-collapsed .gio-sidebar{
+  transform: translateX(calc(-1 * (var(--sidebar-w) - var(--sidebar-handle))));
+}
+body.sidebar-collapsed .gio-side-toggle{ transform: rotate(180deg); }
+
+/* Footer */
+.gio-footer{
+  position: absolute; left: 0; right: 0; bottom: 0; height: var(--footer-h);
+  display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 0 18px;
+  border-top: 1px solid var(--glass-stroke);
+}
+.gio-footer-nav{ display:flex; gap:14px; font-size:12px; color: var(--text-dim); }
+.gio-footer-nav a:hover{ color:#fff; }
+
+/* Player – über allem */
+.gio-playerbar.solid{
+  pointer-events: auto;
+  position: absolute; left: 0; right: 0; bottom: var(--footer-h);
+  height: var(--player-h);
+  display:flex; align-items:center; gap:16px; padding: 0 18px;
+  background: linear-gradient(180deg, rgba(5,15,52,1), rgba(3,13,47,1));
+  border-top: 1px solid var(--glass-stroke);
+  box-shadow: 0 -12px 28px -16px var(--glass-shadow);
+  transform: translateY(14px); opacity: 0; pointer-events: none;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s cubic-bezier(.2,.8,.2,1);
+  z-index: 110;
+}
+.gio-playerbar.is-visible{ transform: translateY(0); opacity: 1; pointer-events: auto; }
+.gio-player-cover{ height: calc(var(--player-h) - 18px); border-radius: 6px; object-fit: cover; cursor: pointer; }
+.gio-player-cover.is-playing{ outline: 2px solid var(--brand); outline-offset:-2px; }
+.gio-player-meta{ display:flex; align-items:center; gap:10px; min-width: 0; }
+.gio-player-title{ font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 26vw; }
+.gio-player-artist{ color:#fff; text-decoration:underline; white-space:nowrap; }
+.gio-player-center{ display:flex; align-items:center; gap:16px; flex: 1 1 auto; min-width: 0; }
+.gio-progress{ display:flex; align-items:center; gap:8px; }
+.gio-player-slider{
+  -webkit-appearance:none; appearance:none; height: 4px; width: 300px;
+  background: rgba(255,255,255,.25); border-radius: 999px; outline: none;
+}
+.gio-player-slider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:12px; height:12px; border-radius:50%; background:#fff; }
+.gio-player-slider::-moz-range-thumb{ width:12px; height:12px; border-radius:50%; background:#fff; }
+.gio-player-time{ font-variant-numeric: tabular-nums; color: #b7c1e6; white-space:nowrap; }
+.gio-audio-ctrl{ display:flex; align-items:center; gap:8px; }
+
+/* Mute-Button: heller im Stumm-Modus */
+.gio-mute{
+  width:34px; height:34px; border-radius:8px;
+  border: 1px solid var(--glass-stroke);
+  background: rgba(255,255,255,0.08);
+  display:grid; place-items:center; cursor:pointer;
+  transition: background .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+.gio-mute svg{ width:18px; height:18px; fill:#fff; opacity: .9; }
+.gio-mute.is-muted{
+  background: rgba(255,255,255,0.22);
+  border-color: rgba(255,255,255,0.35);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.12) inset;
+}
+.gio-mute.is-muted svg{ opacity: 1; }
+
+.gio-vol{ width:60px; -webkit-appearance:none; appearance:none; height:4px; background: rgba(255,255,255,.25); border-radius:999px; }
+.gio-vol::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:10px; height:10px; border-radius:50%; background:#fff; }
+.gio-vol::-moz-range-thumb{ width:10px; height:10px; border-radius:50%; background:#fff; }
+
+/* Scroll-Layer (unter der Shell) */
+#gio-scrolllayer{
+  position: relative; z-index: 0;
+  height: 100dvh; overflow: auto;
+  padding-top: var(--header-h);
+  padding-left: var(--sidebar-visible-w);
+  padding-bottom: calc(var(--footer-h) + var(--player-h) + 16px);
+}
+/* Eingeklappt: nur Griffbreite frei lassen */
+body.sidebar-collapsed #gio-scrolllayer{
+  padding-left: var(--sidebar-handle);
+}
+
+/* Small Screens: Sidebar ganz weg, Toggle bleibt fix sichtbar */
+@media (max-width: 980px){
+  :root{ --sidebar-w: 0px; --sidebar-visible-w: 0px; }
+  #gio-scrolllayer{ padding-left: 0; }
+  .gio-sidebar{ width: 0 !important; overflow: hidden !important; }
+  .gio-side-toggle{ position: fixed; left: 8px; bottom: calc(var(--player-h) + 12px); }
+}
+
+/* Hauptfenster-Inhalt */
+.gio-main{ padding: 18px; }
+
+/* Section & Headings */
+.gio-section{ margin-bottom: 28px; }
+.gio-h1{ font-size: clamp(28px, 3.2vw, 40px); font-weight: 700; margin: 6px 0 18px; }
+/* ~20% kleiner als ursprünglich */
+.gio-h2{ font-size: clamp(16px, 1.9vw, 22px); font-weight: 650; margin: 0 0 14px; color:#fff; }
+
+/* Grids/Cards */
+.gio-grid{ display:grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(var(--card-w), var(--card-w))); }
+.gio-card{
+  position:relative; width: var(--card-w);
+  background: rgba(12,20,55,.55); border: 1px solid rgba(255,255,255,.06);
+  backdrop-filter: blur(calc(var(--blur)*.7));
+  box-shadow: 0 10px 30px -18px var(--glass-shadow);
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s cubic-bezier(.2,.8,.2,1), background .22s cubic-bezier(.2,.8,.2,1);
+}
+.gio-card:hover{ transform: translateY(-3px); box-shadow: 0 18px 46px -16px var(--glass-shadow); background: rgba(16,26,68,.6); }
+.gio-card-media{ position:relative; width:100%; aspect-ratio: 1/1; background: rgba(0,0,0,.25); overflow:hidden; }
+.gio-cover{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
+.gio-cover.is-playing{ outline: 2px solid var(--brand); outline-offset:-2px; }
+.gio-card-body{ padding: 8px; }
+.gio-title{ font-size: 13px; font-weight: 650; margin: 2px 0 2px; color:#fff; }
+.gio-meta{ font-size: 12px; color: var(--text-dim); display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+.gio-avatar-wrap{ position:absolute; left:6px; bottom:6px; display:flex; align-items:center; gap:6px; }
+.gio-avatar{ width:22px; height:22px; border-radius:50%; object-fit:cover; background: rgba(255,255,255,.06); }
+
+/* Carousel */
+.gio-carousel{ position:relative; }
+.gio-track{ display:flex; gap: 18px; flex-wrap: nowrap; will-change: transform; transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+.gio-track .gio-card{ flex: 0 0 var(--card-w); }
+
+/* Größen-Overrides pro Karussell */
+.gio-carousel.-large{ --card-w: calc(160px * 1.10); } /* Angesagt: +10% */
+.gio-carousel.-small{ --card-w: calc(160px * 0.90); } /* New: -10% */
+
+/* Pfeile am Karussell */
+.gio-car-btn{
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width:42px; height:42px; border-radius: 10px;
+  border: 1px solid var(--glass-stroke);
+  background: rgba(255,255,255,0.08); backdrop-filter: blur(10px);
+  display:grid; place-items:center; cursor:pointer; z-index: 2;
+  transition: background .14s ease, border-color .14s ease, opacity .14s ease;
+}
+.gio-car-btn:hover{ background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.16); }
+.gio-car-btn.-prev{ left: -14px; }
+.gio-car-btn.-next{ right: -6px; }
+.gio-car-btn.is-off{ opacity:.35; pointer-events:none; }
+.gio-car-btn svg{ width:18px; height:18px; fill:#fff; }
+
+/* Focus */
+.gio-navlink:focus-visible,
+.gio-btn:focus-visible,
+.gio-cover:focus-visible,
+.gio-player-cover:focus-visible,
+.gio-search input:focus-visible,
+.gio-mute:focus-visible{
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(43,93,255,0.25);
+}
+
+/* === GIO Skip-Button im Player === */
+.gio-skip{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:28px; margin:0 8px;
+  border:0; border-radius:8px;
+  background:rgba(255,255,255,.08);
+  backdrop-filter: blur(6px);
+  cursor:pointer;
+  transition:transform .12s ease, background .12s ease, opacity .12s ease;
+}
+.gio-skip svg{ display:block; width:20px; height:20px; fill:#fff; opacity:.9; }
+.gio-skip:hover{ background:rgba(255,255,255,.14); transform:translateY(-1px); }
+.gio-skip:active{ transform:translateY(0); }
+
+/* === GIO: Skip-Button im Player === */
+.gio-skip{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:28px; margin:0 8px 0 8px;
+  border:0; border-radius:8px;
+  background:rgba(255,255,255,.08);
+  backdrop-filter: blur(6px);
+  cursor:pointer;
+  transition:transform .12s ease, background .12s ease, opacity .12s ease;
+  vertical-align:middle;
+}
+.gio-skip svg{ display:block; width:20px; height:20px; fill:#fff; opacity:.9; }
+.gio-skip:hover{ background:rgba(255,255,255,.14); transform:translateY(-1px); }
+.gio-skip:active{ transform:translateY(0); }
+
+.gio-likeinline {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-top:6px;
+  padding:0;
+  border:0;
+  background:transparent;
+  cursor:pointer;
+  user-select:none;
+}
+.gio-like-count {
+  font-weight:700;
+  font-size:16px;
+  line-height:16px;
+  color:#ffffff;
+  min-width:1.2ch;
+  display:inline-block;
+}
+.gio-likeinline svg {
+  width:16px;
+  height:16px;
+  fill:#ffffff;
+  display:block;
+}
+.gio-likeinline.is-liked svg {
+  filter: drop-shadow(0 0 2px rgba(255,255,255,.35));
+}
+.gio-likeinline:active {
+  transform: translateY(1px);
+}
+
+
+/* === GIO: Player-Like größer & höher positioniert === */
+.gio-player-meta .gio-likeinline {
+  transform: translateY(-10px); /* etwas nach oben verschieben */
+  margin: 0 12px;
+  scale: 2.8; /* 1.5–1.8 je nach Geschmack */
+}
+
+.gio-player-meta .gio-likeinline .gio-like-count {
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.gio-player-meta .gio-likeinline svg {
+  width: 20px;
+  height: 20px;
+}
+
+
+
+

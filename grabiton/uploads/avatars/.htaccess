@@ -1,0 +1,7 @@
+# Verhindere das Ausführen von Scripten in Upload-Verzeichnissen
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8
+<FilesMatch "\.(php|phtml|php\d+)$">
+  Deny from all
+</FilesMatch>
+Options -ExecCGI
