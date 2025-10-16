@@ -1,0 +1,31 @@
+Auflistung der Ordnerpfade
+Volumeseriennummer : 000000F8 AE25:AFBA
+C:\USERS\USER\DOCUMENTS\GITHUB\GRABITON-SNAPSHOT\GIO
+|   ordnerstruktur.txt
+|   
++---api
+|       likes.get.php
+|       likes.toggle.php
+|       
++---assets
+|   +---css
+|   |       site.css
+|   |       
+|   \---js
+|           app.js
+|           player.js
+|           player.ui.js
+|           store.js
+|           
++---data
++---public
+|       index.php
+|       
++---shell
+|       header.php
+|       player.php
+|       
+\---views
+        home.php
+        search.php
+        
