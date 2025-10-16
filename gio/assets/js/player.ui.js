@@ -26,7 +26,6 @@
     span.className = 'gio-31s';
     span.title = '31s gezählt';
     span.hidden = true;
-    // Einfügen nach Dauer oder nach aktueller Zeit
     if (el.tdur && el.tdur.parentElement) el.tdur.parentElement.appendChild(span);
     else if (el.tcur && el.tcur.parentElement) el.tcur.parentElement.appendChild(span);
     else document.body.appendChild(span); // Fallback
@@ -39,10 +38,6 @@
   let isMuted = false;
   let volMax = el.vol ? (parseFloat(el.vol.max || '100') || 100) : 100;
   let shown31 = false;
-
-  const LIKE_KEY = id => `gio.like.${id}`;
-  const likedGet = id => { try { return sessionStorage.getItem(LIKE_KEY(id)) === '1'; } catch { return false; } };
-  const likedSet = (id, val) => { try { sessionStorage.setItem(LIKE_KEY(id), val ? '1' : '0'); } catch {} };
 
   function fmt(t){
     t = Math.max(0, Math.floor(t||0));
@@ -73,10 +68,11 @@
     if (el.artist) el.artist.textContent = a?.name || '';
     if (el.cover && song?.cover) el.cover.src = song.cover;
 
-    const s = currentId ? window.gioStore.getSongById(currentId) : null;
-    if (el.likeCount) el.likeCount.textContent = s?.likes ?? 0;
-    if (el.likeBtn) el.likeBtn.classList.toggle('active', currentId ? likedGet(currentId) : false);
+    // Count wird serverseitig geladen; bis dahin neutral
+    if (el.likeCount) el.likeCount.textContent = String((currentId && (window.gioStore.getSongById(currentId)?.likes)) ?? 0);
+    if (el.likeBtn)   el.likeBtn.classList.remove('active');
 
+    // 31s-UI zurücksetzen bei neuem Song
     reset31();
   }
 
@@ -114,44 +110,45 @@
   if (el.playBtn){
     el.playBtn.addEventListener('click', () => window.gioPlayer.toggle());
   }
- if (el.likeBtn){
-  el.likeBtn.addEventListener('click', async () => {
-    const st = window.gioPlayer.getState();
-    const cur = st.song;
-    if (!cur || !cur.id) return;
 
-    // Button sperren
-    el.likeBtn.disabled = true;
+  // Serverbasiertes Like (Client-only-Logik entfernt)
+  if (el.likeBtn){
+    el.likeBtn.addEventListener('click', async () => {
+      const st = window.gioPlayer.getState();
+      const cur = st.song;
+      if (!cur || !cur.id) return;
 
-    try {
-      const res = await fetch('/gio/api/likes.toggle.php', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ songId: cur.id })
-      });
-      const json = await res.json();
-      if (json && json.ok){
-        // UI aktualisieren
-        if (el.likeCount) el.likeCount.textContent = String(json.count ?? 0);
-        el.likeBtn.classList.toggle('active', !!json.liked);
-        // Store synchron halten (optional)
-        if (window.gioStore){
-          const s = window.gioStore.getSongById(cur.id);
-          if (s){ window.gioStore.upsertSong({ ...s, likes: json.count|0 }); }
+      el.likeBtn.disabled = true;
+      try {
+        const res = await fetch('/gio/api/likes.toggle.php', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ songId: cur.id })
+        });
+        const json = await res.json();
+        const data = json?.data || json || {};
+        if (json && json.ok){
+          if (el.likeCount) el.likeCount.textContent = String((typeof data.count !== 'undefined') ? data.count : 0);
+          el.likeBtn.classList.toggle('active', !!data.liked);
+          if (window.gioStore){
+            const s = window.gioStore.getSongById(cur.id);
+            if (s){ window.gioStore.upsertSong({ ...s, likes: (data.count|0) }); }
+          }
         }
+      } catch(e){ /* ignore */ }
+      finally {
+        el.likeBtn.disabled = false;
       }
-    } catch(e){ /* still ok */ }
-    finally {
-      el.likeBtn.disabled = false;
-    }
-  });
-}
+    });
+  }
+
   if (el.slider){
     el.slider.addEventListener('input', (e) => {
       const v = Number(e.target.value || 0);
       window.gioPlayer.seek(v);
     });
   }
+
   if (el.vol){
     if (!el.vol.hasAttribute('max')) { el.vol.setAttribute('max', '100'); volMax = 100; }
     el.vol.addEventListener('input', (e) => {
@@ -160,6 +157,7 @@
       window.gioPlayer.setVolume(v01);
     });
   }
+
   if (el.mute){
     el.mute.addEventListener('click', () => {
       isMuted = !isMuted;
