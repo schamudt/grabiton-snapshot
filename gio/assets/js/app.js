@@ -9,6 +9,7 @@
       .catch(err => { main.innerHTML = `\nFehler: ${err.message}\n`; });
   }
 
+  // Delegiertes Routing
   document.addEventListener('click', (e) => {
     const link = e.target.closest('[data-route]');
     if (!link) return;
@@ -27,29 +28,51 @@
   load(initial);
 })();
 
-// Stabiler Like-Button am Player (kein Audiozugriff)
+// Stabiler Like-Button am Player (Server-basiert, single source of truth)
 (() => {
   const btn = document.getElementById('gio-like-btn');
   const count = document.getElementById('gio-like-count');
   if (!btn || !count) return;
 
+  // Doppelte Bindung verhindern
+  if (btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
+
   let busy = false;
+
   async function toggleLike(songId) {
     if (!songId || busy) return;
-    busy = true; btn.style.opacity = "0.6";
+    busy = true;
+    btn.disabled = true;
+    btn.style.opacity = "0.6";
     try {
-      const fd = new FormData();
-      fd.append('song_id', songId);
       const r = await fetch('/gio/api/likes.toggle.php', {
-        method: 'POST', body: fd, credentials: 'same-origin'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songId }),
+        credentials: 'same-origin'
       });
       const j = await r.json();
-      if (j.ok && j.data) {
-        count.textContent = j.data.count;
-        btn.classList.toggle('is-liked', j.data.liked);
+      const data = j?.data || j || {};
+      if (j?.ok) {
+        const cnt = (typeof data.count !== 'undefined') ? data.count : 0;
+        const liked = !!data.liked;
+        count.textContent = String(cnt);
+        btn.classList.toggle('is-liked', liked);
+
+        // Store synchronisieren (optional)
+        if (window.gioStore) {
+          const s = window.gioStore.getSongById(songId);
+          if (s) window.gioStore.upsertSong({ ...s, likes: cnt });
+        }
       }
-    } catch (err) { console.error('Like-Error', err); }
-    btn.style.opacity = "1"; busy = false;
+    } catch (err) {
+      console.error('Like-Error', err);
+    } finally {
+      btn.style.opacity = "1";
+      btn.disabled = false;
+      busy = false;
+    }
   }
 
   btn.addEventListener('click', (e) => {
@@ -58,8 +81,34 @@
     toggleLike(id);
   });
 
-  // Exponiere optional für andere Views
+  // Für andere Views verfügbar
   window.gioLikesToggle = toggleLike;
+
+  // Initialen Like-Status beim Songwechsel holen
+  (function attachPlayerLikeSync(){
+    if (!window.gioPlayer) return;
+    window.gioPlayer.subscribe((type, payload) => {
+      if (type !== 'player:load' && type !== 'player:play' && type !== 'player:loaded') return;
+      const s = (payload && payload.song) || window.gioPlayer.getState().song;
+      if (!s || !s.id) return;
+
+      // Button an aktuelle Song-ID koppeln
+      btn.dataset.songId = s.id;
+
+      // Status vom Server holen
+      fetch(`/gio/api/likes.get.php?songId=${encodeURIComponent(s.id)}`, { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(j => {
+          const data = j?.data || j || {};
+          if (!j?.ok) return;
+          const cnt = (typeof data.count !== 'undefined') ? data.count : 0;
+          const liked = !!data.liked;
+          count.textContent = String(cnt);
+          btn.classList.toggle('is-liked', liked);
+        })
+        .catch(() => {});
+    });
+  })();
 })();
 
 // Demo-Button: Song in Store registrieren und über Player-Core abspielen
@@ -74,22 +123,19 @@ document.addEventListener('click', (e) => {
 
   // sicherstellen, dass der Track im Store existiert
   if (window.gioStore?.upsertSong) {
-    window.gioStore.upsertSong({
-      id: TEST_ID, title: 'Demo Song', artistId, src: TEST_MP3
-    });
+    window.gioStore.upsertSong({ id: TEST_ID, title: 'Demo Song', artistId, src: TEST_MP3 });
   }
 
-  // Like-UI an neue ID hängen
+  // Like-UI an neue ID hängen (wird durch Player-Subscribe ebenfalls gesetzt)
   const likeBtn = document.getElementById('gio-like-btn');
   const likeCount = document.getElementById('gio-like-count');
   if (likeBtn) likeBtn.dataset.songId = TEST_ID;
   if (likeCount) likeCount.dataset.songId = TEST_ID;
 
-  // Abspielen über neuen Player-Core
+  // Abspielen über Player-Core
   if (window.gioPlayer?.loadAndPlay) {
     window.gioPlayer.loadAndPlay(TEST_ID);
   } else if (typeof window.gioSetCurrentSong === 'function') {
-    // Fallback: kompatibel bleiben
     window.gioSetCurrentSong({ id: TEST_ID, title: 'Demo Song', artist: 'Demo Artist', src: TEST_MP3 });
   }
 });

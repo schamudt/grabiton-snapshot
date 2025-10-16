@@ -11,6 +11,7 @@ ini_set('display_errors', 1);
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>gio – Neuaufbau</title>
   <link rel="stylesheet" href="/gio/assets/css/site.css">
+  <link rel="icon" href="/gio/assets/img/giocon.png">
 </head>
 <body>
   <?php include __DIR__ . '/../shell/header.php'; ?>
@@ -21,6 +22,13 @@ ini_set('display_errors', 1);
   </div>
   <?php include __DIR__ . '/../shell/footer.php'; ?>
 
-  <script src="/gio/assets/js/app.js" defer></script>
+ 	<script src="/gio/assets/js/player.js"></script>
+	<script src="/gio/assets/js/store.js" defer></script>
+	<script src="/gio/assets/js/player.ui.js" defer></script>
+	<script src="/gio/assets/js/app.js" defer></script>
+	<script src="/gio/assets/js/search.js" defer></script>
+
+
+
 </body>
 </html>
