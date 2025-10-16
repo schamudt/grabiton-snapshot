@@ -1,3 +1,23 @@
+// warte bis gioStore existiert, dann init
+(function waitForStore(){
+  if (!window.gioStore) { setTimeout(waitForStore, 50); return; }
+  window.addEventListener('DOMContentLoaded', () => {
+    const st = window.gioStore.getState();
+    document.dispatchEvent(new CustomEvent('gio:home:init', { detail: st.songs }));
+  });
+})();
+
+// store laden
+// <script src="/gio/assets/js/store.js"></script> muss im HTML vor app.js eingebunden sein
+if (!window.gioStore) { console.error('gioStore fehlt'); }
+
+// Beispiel: Player-Demo an Store koppeln
+window.addEventListener('DOMContentLoaded', () => {
+  const st = window.gioStore.getState();
+  // Optional: Home-List initial render trigger
+  document.dispatchEvent(new CustomEvent('gio:home:init', { detail: st.songs }));
+});
+
 // Minimaler Start: lädt die Home-View in <main id="gio-main">.
 (function () {
   const main = document.getElementById('gio-main');
