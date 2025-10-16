@@ -1,0 +1,93 @@
+\grabiton\admin\artists.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\artists.php | 4:require_login();
+\grabiton\admin\artists.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\artists.php | 190:      const match = name.includes(query) || code.includes(query);
+\grabiton\admin\artists_delete.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\artists_delete.php | 4:require_login();
+\grabiton\admin\artists_delete.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\artists_edit.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\artists_edit.php | 4:require_login();
+\grabiton\admin\artists_edit.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\artists_edit.php | 118:      <div class="field"><label>Künstlername *</label><input class="input" type="text" name="artist_name" required value="<?= htmlspecialchars($artist['artist_name']) ?>"></div>
+\grabiton\admin\artists_new.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\artists_new.php | 4:require_login();
+\grabiton\admin\artists_new.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\artists_new.php | 59:    <input type="text" name="artist_name" required>
+\grabiton\admin\clean.php | 8:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\clean.php | 9:require_login();
+\grabiton\admin\clean.php | 11:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\clean.php | 80:          <input type="number" id="song_id" name="song_id" min="1" step="1" required>
+\grabiton\admin\dashboard.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\dashboard.php | 4:require_login();
+\grabiton\admin\dashboard.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\login.php | 2:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\login.php | 118:      <input name="email" type="email" placeholder="E-Mail" autocomplete="username" required>
+\grabiton\admin\login.php | 119:      <input name="password" type="password" placeholder="Passwort" autocomplete="current-password" required>
+\grabiton\admin\releases.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\releases.php | 4:require_login();
+\grabiton\admin\releases.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\releases_overview.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\releases_overview.php | 4:require_login();
+\grabiton\admin\releases_overview.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\release_delete.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\release_delete.php | 4:require_login();
+\grabiton\admin\release_delete.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\release_delete_safe.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\release_delete_safe.php | 4:require_login();
+\grabiton\admin\release_delete_safe.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\release_edit.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\release_edit.php | 4:require_login();
+\grabiton\admin\release_edit.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\release_edit.php | 175:        <input class="input" type="text" name="title" required value="<?= htmlspecialchars($release['title']) ?>">
+\grabiton\admin\release_edit.php | 178:        <select class="select" name="release_type" required>
+\grabiton\admin\release_edit.php | 205:        <input class="input" type="text" name="track_title" required>
+\grabiton\admin\release_edit.php | 207:        <input class="file" type="file" name="audio" accept=".mp3,audio/mpeg" required>
+\grabiton\admin\release_new.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\release_new.php | 4:require_login();
+\grabiton\admin\release_new.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\release_new.php | 83:        <input class="input" type="text" name="title" required>
+\grabiton\admin\release_new.php | 88:        <select class="select" name="release_type" required>
+\grabiton\admin\songs_cleanup.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\songs_cleanup.php | 4:require_login();
+\grabiton\admin\songs_cleanup.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\song_delete.php | 3:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\song_edit.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\song_edit.php | 4:require_login();
+\grabiton\admin\song_edit.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\song_edit.php | 188:      <input class="input" type="text" name="title" value="<?= htmlspecialchars($song['title']) ?>" required>
+\grabiton\admin\song_edit.php | 227:               required>
+\grabiton\admin\song_new.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\song_new.php | 4:require_login();
+\grabiton\admin\song_new.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\song_new.php | 155:      <input class="input" type="text" name="title" required placeholder="Track-Titel">
+\grabiton\admin\song_new.php | 158:      <input class="file" type="file" name="audio" accept=".mp3,audio/mpeg" required>
+\grabiton\admin\track_library.php | 3:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\admin\track_library.php | 4:require_login();
+\grabiton\admin\track_library.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\track_library.php | 354:            <input type="date" id="panelDate" required
+\grabiton\admin\track_library.php | 568:        hit = artist.includes(q) || title.includes(q);
+\grabiton\admin\_alter_add_artist_code.php | 3:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\_install_core_music.php | 3:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\_install_create_artists.php | 3:require_once __DIR__ . '/../includes/db.php';
+\grabiton\admin\_install_releases.php | 3:require_once __DIR__ . '/../includes/db.php';
+\grabiton\api\like.php | 8:require_once __DIR__ . '/../includes/db.php';
+\grabiton\api\likes_get.php | 8:require_once __DIR__ . '/../includes/db.php';
+\grabiton\api\play.php | 8:require_once __DIR__ . '/../includes/db.php';
+\grabiton\api\plays_get_counts.php | 8:require_once __DIR__ . '/../includes/db.php';
+\grabiton\api\plays_set_base.php | 8:require_once __DIR__ . '/../includes/db.php';
+\grabiton\api\song_set_flag.php | 8:require_once __DIR__ . '/../../includes/db.php';
+\grabiton\artist.php | 3:require_once __DIR__ . '/includes/db.php';
+\grabiton\fragments\artist.php | 8:require_once dirname(__DIR__) . '/includes/db.php';
+\grabiton\fragments\artists.php | 9:require_once dirname(__DIR__) . '/includes/db.php';
+\grabiton\fragments\artists.php | 256:      const passSearch = needle === '' ? true : name.includes(needle);
+\grabiton\fragments\home.php | 5:require_once __DIR__ . '/../includes/db.php';
+\grabiton\includes\auth.php | 3:function require_login(): void {
+\grabiton\includes\dashboard.php | 2:require_once __DIR__ . '/../includes/auth.php';
+\grabiton\includes\dashboard.php | 3:require_login();
+\grabiton\includes\db.php | 2:// includes/db.php
+\grabiton\includes\db.php | 3:require_once __DIR__ . '/config.php';
+\grabiton\index.php | 29:    <?php include __DIR__ . '/shell/header.php'; ?>
+\grabiton\index.php | 30:    <?php include __DIR__ . '/shell/sidebar.php'; ?>
+\grabiton\index.php | 31:    <?php include __DIR__ . '/shell/footer.php'; ?>
+\grabiton\index.php | 32:    <?php include __DIR__ . '/shell/player.php'; ?>
+\grabiton\index.php | 38:      <?php include $fragment; ?>

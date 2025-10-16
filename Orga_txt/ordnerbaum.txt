@@ -1,0 +1,108 @@
+Ordner-/Dateibaum ab Wurzel "\"
+
++---grabiton
+|   |   .user.ini
+|   |   artist.php
+|   |   datenschutz.php
+|   |   impressum.php
+|   |   index.php
+|   |   kontakt.php
+|   |   
+|   +---actions
+|   +---admin
+|   |       artists.php
+|   |       artists_delete.php
+|   |       artists_edit.php
+|   |       artists_new.php
+|   |       clean.php
+|   |       dashboard.php
+|   |       login.php
+|   |       logout.php
+|   |       releases.php
+|   |       releases_overview.php
+|   |       release_delete.php
+|   |       release_delete_safe.php
+|   |       release_edit.php
+|   |       release_new.php
+|   |       songs_cleanup.php
+|   |       song_delete.php
+|   |       song_edit.php
+|   |       song_new.php
+|   |       track_library.php
+|   |       _alter_add_artist_code.php
+|   |       _install_core_music.php
+|   |       _install_create_artists.php
+|   |       _install_make_upload_dirs.php
+|   |       _install_releases.php
+|   |       
+|   +---api
+|   |       like.php
+|   |       likes_get.php
+|   |       play.php
+|   |       plays_get_counts.php
+|   |       plays_set_base.php
+|   |       song_set_flag.php
+|   |       
+|   +---assets
+|   |   +---css
+|   |   |       site.css
+|   |   |       style.css
+|   |   |       
+|   |   +---img
+|   |   |       artitsbanner_place.jpg
+|   |   |       cover_fallback.jpg
+|   |   |       dat_Logo_GrabItOn_fontlogclaim_wh.png
+|   |   |       dat_Logo_GrabItOn_fontlogclaim_wh.svg
+|   |   |       dat_Logo_GrabItOn_fontlogclaim_whblue.svg
+|   |   |       dat_Logo_GrabItOn_fontlog_wh.svg
+|   |   |       dat_Logo_GrabItOn_log_wh.svg
+|   |   |       
+|   |   \---js
+|   |           site.js
+|   |           
+|   +---fragments
+|   |       artist.php
+|   |       artists.php
+|   |       explore.php
+|   |       home.php
+|   |       releases.php
+|   |       
+|   +---includes
+|   |       auth.php
+|   |       config.php
+|   |       dashboard.php
+|   |       db.php
+|   |       
+|   +---legal
+|   |       upload_policy.php
+|   |       
+|   +---public
+|   +---shell
+|   |       footer.php
+|   |       header.php
+|   |       player.php
+|   |       sidebar.php
+|   |       
+|   \---uploads
+|       |   .htaccess
+|       |   index.html
+|       |   
+|       +---audio
+|       |       .htaccess
+|       |       
+|       +---avatars
+|       |       .htaccess
+|       |       
+|       +---banners
+|       |       .htaccess
+|       |       
+|       \---covers
+|               .htaccess
+|               
+\---Orga_txt
+        filelist.txt
+        overview.txt
+        php_includes_map.txt
+        php_includes_raw.txt
+        _tree_tmp.txt
+        

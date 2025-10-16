@@ -1,0 +1,1 @@
+<?php // TODO: Konfiguration (DB-Zugangsdaten etc.) ?>

@@ -1,0 +1,154 @@
+Projekt: GrabItOn – PHP/JS SPA-Light Musikplattform.
+
+Dateistruktur (wichtigste Pfade)
+Top: /grabiton/index.php (Shell + Hauptfenster lädt Fragmente), /grabiton/artist.php (Legacy), /grabiton/assets/css/site.css, /grabiton/assets/js/site.js, /grabiton/shell/{header.php,sidebar.php,player.php,footer.php}, /grabiton/fragments/{home.php,artist.php,artists.php,explore.php,releases.php}, /grabiton/includes/{db.php,auth.php,config.php}, /grabiton/api/{like.php,likes_get.php,play.php,...}, Upload-Verzeichnisse für audio/avatars/banners/covers. Quelle: filelist.txt und overview.txt 
+
+filelist
+
+ 
+
+overview
+
+DB-Kerne
+artists(id, artist_name, genre, artist_code=gio########, avatar_path, banner_path, ...)
+releases(id, artist_id, title, release_type, cover_path, release_date, ...)
+songs(id, artist_id, release_id, title, audio_path, track_number, is_featured, is_new, is_hidden, created_at, uploaded_at, ...)
+Events/Zähler: likes(song_id,user_ip,...), plays(song_id,user_ip,started_at), play_counters(song_id, base_count). Prepared Statements, CSRF für kritische POSTs, Admin-Login via require_login().
+
+Shell/Assembler
+index.php rendert fixe Shell (Header/Sidebar/Footer/Player), Content-Fenster #gio-main lädt Fragmente per JS. Die Shell bleibt stehen (Player weiterlaufend erwünscht), Inhalte wechseln per fetch. Seitenfragmente liegen unter /grabiton/fragments/. filelist bestätigt Fragmente und Shell-Dateien 
+
+filelist
+
+Routing (SPA-Light) in assets/js/site.js
+pathToFragment(path): mappt /grabiton/, /explore, /artists, /releases auf Fragmente, sonst home.php.
+interceptLinks(): fängt <a data-nav="push"> ab, lädt Fragment via loadFragmentByPath() und pusht History, popstate lädt zurück.
+updateActiveLinks() markiert Sidebar-Links.
+loadFragmentByPath(): fetch('/grabiton/'+fragment), setzt #gio-main, bindet danach bindCovers(), bindCarousel(), initLikeCounts(), updateActiveLinks().
+
+Artist-Seite (ohne Full-Reload)
+Zusätzlicher JS-Block: Klicks auf /grabiton/?code=gio######## werden abgefangen, dann fetch('/grabiton/fragments/artist.php?code=...') und setzt #gio-main, history.pushState, dispatch Event "gio:main:updated". popstate lädt artist oder home analog. Pfad-/Query-Strategie ist bewusst ohne Ordner /artist, sondern Query (?code=gio########).
+
+Player
+shell/player.php liefert UI-Elemente (Cover, Titel, Artist-Link, Zeitanzeigen, Slider 300px, Mute + Vol). In site.js: Referenzen auf #gio-audio, Zeitanzeigen, Titel/Artist/Cover, Slider, Mute, Vol. saveState()/loadSavedState() sichern src, Zeit, Lautstärke etc. showBar() blendet Player sichtbar ein.
+
+Abspielen
+bindCovers(): Klick auf .gio-card .gio-cover lädt Meta (title/artist/cover/artistHref aus data-Attributen), setzt audio.src, spielt ab, markiert Cover .is-playing, setzt currentTrigger. Startet Auto-Queue über startQueueFromSong(songId). PlayCounter-Setup: currentSongId und hasSentPlay (30s). Ergänzung eingebaut: beim Start werden data-song-id sowohl am <audio id="gio-audio"> als auch am Player-Like-Button [data-role="player-like"] gesetzt (essentiell für Player-Like). Diese zwei Zeilen sind direkt in bindCovers() nach PlayCounter gesetzt.
+
+Auto-Queue
+buildHipQueue(): liest #gio-hip Karussell (Angesagt) in DOM-Reihenfolge und baut Array {songId, src, title, artist, artistHref, cover, trigger}. startQueueFromSong(songId) merkt Index, queueActive=true. playTrack(track) setzt UI, src, spielt, markiert trigger .is-playing, setzt currentSongId/hasSentPlay. Ergänzung eingebaut: setzt data-song-id am <audio> und am Player-Like-Button in playTrack(track), damit bei Queue-Advance die aktuelle song_id bekannt bleibt. advanceQueue() spielt next oder endet.
+
+PlayCounter (30s)
+checkPlayThreshold(): nach 30s sendet /grabiton/api/play.php (FormData song_id), einmal pro Track/IP/Fenster per sessionStorage Debounce.
+
+Likes allgemein (Karten)
+initLikeCounts(context): POST /grabiton/api/likes_get.php mit song_ids → setzt Counts und is-liked-Klassen. bindLikesClickOnce(): delegierter Klick-Handler auf .gio-like; optimistic Toggle, POST /grabiton/api/like.php (FormData song_id), dann Counts/Status über alle Buttons mit gleicher song_id synchronisiert. Diese API existiert laut filelist (/api/like.php, /api/likes_get.php) 
+
+filelist
+
+Karussell
+bindCarousel(): Pfeile links/rechts verschieben track via translateX je Karte (+gap). 1 Karte pro Klick.
+
+Sidebar Toggle
+sessionStorage Flag, Button .gio-side-toggle toggelt .sidebar-collapsed; Button-aria-expanded gesetzt. restoreSidebar() liest Zustand.
+
+Artist-Navigation (Detail)
+Separater JS IIFE: getCodeFromHref(), loadArtistByCode() → fetch('/grabiton/fragments/artist.php?code=...') in #gio-main, pushState, dispatch "gio:main:updated", scrollTop. Link-Intercept nur für href^="/grabiton/?code=gio". popstate behandelt zurück/vor; lädt wieder Fragment.
+
+Player-Like (Varianten im Code)
+Es liegen mehrere Versuche am Ende von site.js:
+
+like_toggle.php JSON-POST: Button .gio-like--player sendet {song_id} an /grabiton/actions/like_toggle.php, synchronisiert Counts/Klassen über DOM. (Serverroute war testweise, unklar ob aktiv.)
+
+like_toggle.php form-urlencoded plus Logging und robustere song_id-Ermittlung: greift auf [data-role="player-like"] und #gio-audio data-song-id zu, Fallback über audio.currentSrc → .gio-cover[data-src$="..."].
+
+like_add.php (+1 ohne Toggle): POST /grabiton/actions/like_add.php (form-urlencoded), erhöht Count stur und synchronisiert nur die Anzeige. (Nur nutzen, wenn gewollt.)
+
+Wichtigster Beschluss für Funktionalität
+Damit der Player-Like-Click weiß, welchen Song er zählen soll, werden bei jedem Trackstart zwei Attribute gesetzt:
+audio.setAttribute('data-song-id', songId)
+document.querySelector('[data-role="player-like"]').setAttribute('data-song-id', songId)
+Diese beiden Stellen sind exakt implementiert in bindCovers() (Start über Card) und playTrack(track) (Start über Auto-Queue).
+Phase 1
+
+
+Server-APIs (bestehend)
+/grabiton/api/like.php (Toggle für Karten)
+/grabiton/api/likes_get.php (Counts + liked-Status)
+/grabiton/api/play.php (Play-Counter)
+Weitere Admin-/API-Skripte vorhanden. Quelle: filelist.txt und php_includes_raw.txt zeigen includes db.php/auth.php überall korrekt referenziert 
+
+filelist
+
+ 
+
+php_includes_raw
+
+Home/Fragmente
+fragments/home.php baut zwei Karusselle: Angesagt (is_featured zuerst, Rest zufällig, auf 25 gepadded) und New (is_new zuerst, Rest zufällig). Unsichtbare Songs (is_hidden=1) werden gefiltert. Karten zeigen Songtitel, darunter Release-Titel, Like-Button linksbündig mit Zahl vor Icon. Klick aufs Cover spielt im globalen Player. Band/Artist-Link per data-nav="push" öffnet artist-Fragment per SPA. Fallbacks: cover_fallback.jpg für fehlende Cover, kein Avatar-Platzhalter. (Inhalte aus deinem geposteten home.php; Datei existiert: fragments/home.php laut filelist) 
+
+filelist
+
+Artist-Fragment
+fragments/artist.php existiert. Layout-Anforderungen wurden iterativ verfeinert: Banner ohne statisches Blur (nur unter Header ggf. Blur), Verlauf unten dunkler/weiter nach oben, Artistname groß (Montserrat Bold, Uppercase), Genre direkt darunter, Artist-ID oben linksbündig unter Headerkante, Avatar rechts über Banner überlappend, Bandinfo-Box beginnt unter Avatar, ohne Label „Bandinfo“, darin unter dem Artistname die Artist-ID. Releases: Cover ohne Rahmen/Hintergrund, Hover-Zoom bleibt, Breite 100px (später anpassbar), später wieder größer 1.5x, Grid mit 4 pro Zeile, jüngstes Release links; Jahreszahl links unter Cover, rechtsbündig Release-Typ (Single/EP/Album). Linke Kante der Covers an Überschrift „Releases“ ausgerichtet. (Artist-Seite wird via /grabiton/?code=gio######## geladen, nicht /artist/… Ordner.)
+
+Header/Sidebar
+shell/sidebar.php Links mit data-nav="push" funktionieren für Start, Erkunden, Künstler*innen, Veröffentlichungen. Diese Technik wurde auf Artist-Links übertragen.
+
+Persistenz des Players
+index.php lädt nur einmal die Shell; SPA tauscht #gio-main-Content. Player (#gio-audio) bleibt erhalten, Musik läuft beim Navigieren weiter.
+
+ToDo/Nachträge
+Player Skip-Button neben Slider und Zeit (dreieck mit Strich rechts) wurde besprochen: Ein Button, der advanceQueue() triggert. Einbaupunkt: shell/player.php für Button-Markup (zwischen Slider und Zeit) und CSS in site.css, JS-Handler in bindPlayer() oder global auf Button-Klick → advanceQueue().
+Player-Like finale Variante entscheiden: entweder bestehender Toggle (/api/like.php) per simuliertem Klick oder stabile Eigenroute (/actions/like_toggle.php bzw. like_add.php). Aktuell wichtigste technische Voraussetzung dafür ist korrekt gesetzte data-song-id am Audio und am Player-Like-Button bei jedem Trackwechsel (bereits im JS umgesetzt).
+
+Sicherheit/Includes
+Alle Admin-Seiten und APIs nutzen includes/db.php und ggf. includes/auth.php (require_login) mit prepared statements. Mehrfache require_once-Muster sind im Projekt verbreitet, die Pfade stimmen (../includes/db.php etc.). Quelle: php_includes_raw.txt 
+
+php_includes_raw
+
+Kurzschluss für neuen Chat
+SPA-Light aktiv, #gio-main lädt Fragmente; Artist-Navigation per ?code=gio########; Player läuft weiter; PlayCounter nach 30s; Likes auf Karten via /api/like.php funktionieren; Player-Like braucht nur die aktuelle song_id → wird in bindCovers() und playTrack() via data-song-id an #gio-audio und [data-role="player-like"] gesetzt; optionaler Serverendpunkt für Player-Like existiert als Konzept, aber Karten-Toggle ist bereits produktiv; Karusselle arbeiten (Schritt=1 Karte); Home sortiert Featured/New korrekt; Cover-Fallbacks vorhanden; Stilvorgaben Glasoptik, Farben, Buttons.
+
+
+
+
+Phase 2
+
+projektkontext grabiton php spa system, dynamisches laden von fragmenten über fetch in #gio-main, site.js ist zentrales js für routing, player, likes, carousel, sidebar, neu auch artistfilter. server apache mit rewrite für index.php fallback. datenbank via includes/db.php pdo verbindung.
+
+aktueller bestand home.php zeigt songkarten mit like buttons, playerbar hat eigenen like button. likes sollen global synchronisieren (card und player). bisheriger fehler: player übernahm song_id nicht, api aufruf like.php falsch oder mehrfach, optimistic update unvollständig. lösung: site.js angepasst, like handler global, song_id robust ermittelt (vom button, vom audio tag, fallback player button). nach serverantwort globale sync über alle buttons mit gleicher song_id. initLikeCounts(context) lädt counts und status per likes_get.php, auch für player-button. wirePlayerLike(songId) setzt song_id am player like button bei trackwechsel. jetzt synchronisiert sich like status global, player zeigt richtige werte bei songwechsel, optimistic update revertiert korrekt bei fehler.
+
+weitere änderungen player: state save in session storage, playcounter ab 30s, autoqueue "angesagt" bereich, cover klick startet playback, zeigt meta daten, verknüpft song_id.
+
+artist.php zeigt detailseite eines künstlers, lädt über code gio########, zeigt banner, avatar, genre, bandinfo, id badge oben links, layout stabil, banner bleibt sichtbar.
+
+artists.php neu erstellt. funktion: lädt alle artists aus db (id, artist_name, artist_code, genre, avatar_path, banner_path, release_count via subselect). fallback avatar auf cover_fallback.jpg, banner artistsbanner_place.jpg. grid mit 6 spalten, quadratische avatare, bandname unter bild. header bereich mit titel "Artists", darunter reihe mit buttons A-Z, "…", "Alle" und suchfeld rechtsbündig, alles auf gleicher höhe. klick auf avatar führt zur jeweiligen artist detailseite.
+
+fehler artists: initial kein js filter aktiv, weil inline script nicht läuft (fetch lädt html, scripts werden nicht evaluiert). lösung: filterlogik in site.js verlagert als funktion bindArtistsFilter(context). bindArtistsFilter wird in loadFragmentByPath nach initLikeCounts(main) aufgerufen, initialisiert A-Z buttons und suchfeld eventlistener. filter arbeitet auf data-name und data-group attributen der artist-item elemente, versteckt nicht passende einträge.
+
+site.js aktualisiert: enthält jetzt bindArtistsFilter(context) funktion, wird nach jedem fragment load aufgerufen. inline script entfernt. reload problem: /grabiton/artists direkt im browser -> leer, weil keine rewrite. lösung: .htaccess rewrite rules eingeführt (wenn datei oder ordner nicht existiert -> index.php).
+
+systemverhalten aktuell:
+
+likes: global synchronisiert, player und cards updaten sich gegenseitig
+
+player: songwechsel übernimmt like daten, spielt tracks, autoqueue läuft
+
+artist.php: funktioniert vollständig, id badge korrekt positioniert, banner unverändert
+
+artists.php: lädt alle artists, grid korrekt, banner sichtbar, filter und suche funktionieren nach js update, reload mit rewrite funktioniert
+
+offene punkte:
+
+sicherstellen rewrite aktiv auf server
+
+suchfeld und buttons styling angleichen (größe, abstand)
+
+optional pagination bei vielen artists
+
+api fehlerbehandlung like und play verbessern
+
+prüfen dass alle like aufrufe /api/like.php nutzen, kein doppelter endpoint
+
+status schluss: system technisch stabil, site.js enthält alle globalen funktionen, kein inline js in fragmenten mehr, player und likes global synchronisiert, artist und artists seiten datenbankgebunden, frontend interaktiv durch bindArtistsFilter. nächste schritte: neue basisdateien einlesen (rawlinks, overview, php_includes_raw, projektstand) und prüfen ob struktur identisch, anschließend funktionserweiterung oder feinschliff.

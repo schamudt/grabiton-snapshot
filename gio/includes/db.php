@@ -1,0 +1,1 @@
+<?php // TODO: PDO-Verbindung einrichten ?>

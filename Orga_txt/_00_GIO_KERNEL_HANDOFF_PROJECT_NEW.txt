@@ -1,0 +1,53 @@
+GIO-KERNEL HANDOFF (komplett)
+
+Projektname: gio
+Pfad: /gio/ (nicht /grabiton/)
+Struktur:
+gio/
+ ├── public/
+ │    ├── index.php           → Shell: Header, Sidebar, Footer, Player + <main id="gio-main">
+ │    ├── .htaccess           → saubere Pfade /gio/views/{view}.php
+ │    ├── assets/
+ │    │    ├── css/site.css   → nur globale Styles
+ │    │    ├── js/app.js      → zentraler JS-Kern (Routing, Player, Likes, Stats)
+ │    │    └── audio/demo.mp3
+ │    └── views/
+ │         └── home.php       → Demo-Button #demo-load (lädt Song)
+ ├── shell/
+ │    ├── header.php / footer.php / sidebar.php
+ │    └── player.php          → globaler Audio-Player
+ └── api/
+      ├── _bootstrap.php      → Session + Dummy-Daten
+      ├── likes.get.php
+      ├── likes.toggle.php
+      ├── plays.log.php       → 31s-Playcounter
+      └── plays.start.php     → 2s-Startcounter
+
+Player (player.php)
+- gio-audio
+- gio-player-cover (clickable für Play/Pause)
+- gio-play-btn (Play/Pause, Text: ▶/⏸)
+- gio-like-btn, gio-like-count (globale Likes)
+- Slider .gio-player-slider (seekbar)
+- .gio-vol (volume range, 0–100)
+- .gio-mute (mute toggle, aria-pressed true/false)
+- .gio-player-time → zeigt Laufzeit und ✓ bei 31 s
+
+Funktionierende Features (app.js):
+Routing, Likes, Song setzen, Demo-Button, Play/Pause + Slider + UI, Volume + Mute, Stats – kumulativer Counter.
+
+Funktionierender Stand:
+- Routing → ✅
+- Player (Play/Pause, Slider, Cover) → ✅
+- Volume/Mute persistiert → ✅
+- Likes global → ✅
+- 2 s Start & 31 s Playcounter → ✅
+- UI ✓ nach 31 s → ✅
+- Kein Reload, alles modular → ✅
+
+Nächster Schritt:
+→ Globaler Daten-Store / SongCard-System / Suche (Home ↔ Player ↔ Global ↔ SongCard ↔ Search verknüpfen).
+
+Anweisung für nächsten Chat:
+Schreibe einfach:
+weiter mit GIO-Kernel Stand 1 — Songcards, Global Store, Suche verbinden.

@@ -1,0 +1,7 @@
+RewriteEngine On
+# This makes sure that pretty URLs and page refreshes work.
+# It says: if a real file or folder does NOT exist, send the request to index.php
+RewriteBase /gio/public/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
