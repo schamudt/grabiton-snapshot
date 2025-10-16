@@ -1,8 +1,0 @@
-/* Nur globale Styles (Shell, Layout). Deine Seiten-Optik kommt in die Views. */
-body { font-family: system-ui, Arial, sans-serif; margin: 0; }
-.gio-header, .gio-footer { padding: 1rem; border-bottom: 1px solid #ddd; }
-.gio-footer { border-top: 1px solid #ddd; border-bottom: none; }
-#gio-shell { display: grid; grid-template-columns: 240px 1fr; gap: 1rem; padding: 1rem; }
-.gio-sidebar { border-right: 1px solid #eee; padding-right: 1rem; }
-.gio-player { margin-top: 1rem; }
-a[data-route] { display:block; margin: .25rem 0; text-decoration:none; }
