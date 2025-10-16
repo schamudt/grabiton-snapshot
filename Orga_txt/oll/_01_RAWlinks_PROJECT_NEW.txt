@@ -1,0 +1,9 @@
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/assets/css/site.css
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/assets/js/app.js
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/views/home.php
+
+https://github.com/schamudt/grabiton-snapshot/blob/main/gio/api/_bootstrap.php
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/api/likes.get.php
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/api/likes.toggle.php
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/api/plays.log.php
+https://raw.githubusercontent.com/schamudt/grabiton-snapshot/refs/heads/main/gio/api/plays.start.php
