@@ -1,8 +1,10 @@
-// Bootstrap: Shell-Bindings, Router, Suche, Player
+// /gio/js/app.js
+// Bootstrap: Shell-Bindings, Router, Suche, Player, SongCards
 import { Router } from './modules/router.js';
 import { store } from './modules/store.js';
 import { api } from './modules/api.js';
 import { initPlayer } from './modules/player.js';
+import { renderSongCards } from './modules/songcards.js';
 
 let mainEl = null;
 
@@ -31,6 +33,20 @@ async function render(route){
   if (route.name === 'home') {
     const html = await fetch('/gio/views/home.php').then(r=>r.text());
     mainEl.innerHTML = html;
+
+    // Demo-Daten bis DB aktiv ist
+    const demo = [{
+      id: 1,
+      title: 'Demo Song',
+      artist: 'Artist',
+      audio_url: '/gio/assets/demo.mp3',
+      cover_url: '/gio/assets/img/placeholder.jpg',
+      duration: '3:17'
+    }];
+    const elNew = document.getElementById('home-new');
+    const elTrend = document.getElementById('home-trending');
+    renderSongCards(elNew, demo);
+    renderSongCards(elTrend, []);
     return;
   }
 
@@ -39,30 +55,46 @@ async function render(route){
     const q = params.get('q') || store.search.q || '';
     const html = await fetch('/gio/views/search.php').then(r=>r.text());
     mainEl.innerHTML = html;
+
+    const label = document.getElementById('search-label');
+    if (label) label.textContent = q;
+
     if (q.length >= 2) {
       store.search.loading = true;
       const res = await api.search(q);
-      store.search.results = res?.data || {songs:[],artists:[],releases:[]};
+      const data = res?.data || {songs:[],artists:[],releases:[]};
+      store.search.results = data;
       store.search.loading = false;
-      const out = document.getElementById('search-out');
-      if (out) out.textContent = JSON.stringify(store.search.results, null, 2);
-      const label = document.getElementById('search-label');
-      if (label) label.textContent = q;
+
+      // Songs als SongCards rendern
+      const songs = (data.songs || []).map(s => ({
+        id: s.id,
+        title: s.title,
+        artist: '', // optional später aus Join
+        audio_url: '/gio/assets/demo.mp3', // bis echte URLs da sind
+        cover_url: s.cover_url || '/gio/assets/img/placeholder.jpg',
+        duration: toMMSS(s.duration_sec)
+      }));
+      renderSongCards(document.getElementById('search-songs'), songs);
+
+      // Artists/Releases minimal
+      const others = document.getElementById('search-others');
+      if (others) {
+        const a = (data.artists||[]).map(x=>`<li>${esc(x.name)} <span class="muted">${esc(x.genre||'')}</span></li>`).join('') || '<li class="muted">keine Artists</li>';
+        const r = (data.releases||[]).map(x=>`<li>${esc(x.title)} <span class="muted">${esc(x.type||'')}</span></li>`).join('') || '<li class="muted">keine Releases</li>';
+        others.innerHTML = `<h4>Artists</h4><ul>${a}</ul><h4>Releases</h4><ul>${r}</ul>`;
+      }
     }
     return;
   }
-// nach: store.search.results = res?.data || {songs:[],artists:[],releases:[]};
-const out = document.getElementById('search-out');
-const label = document.getElementById('search-label');
-if (label) label.textContent = q;
-if (out) out.innerHTML = renderResults(store.search.results);
+
   Router.navigateTo('#/home');
 }
 
 function mainInit(){
   mainEl = document.getElementById('gio-main');
   mountShellBindings();
-  initPlayer();                 // setzt window.player
+  initPlayer();
   Router.initRouter(render);
 }
 
@@ -72,14 +104,13 @@ if (document.readyState === 'loading') {
   mainInit();
 }
 
-// Hilfsfunktion oben in app.js platzieren
-function renderResults(r){
-  const s = (r.songs||[]).map(x=>`<li>${x.title} <span class="muted">(#${x.id})</span></li>`).join('') || '<li class="muted">keine Songs</li>';
-  const a = (r.artists||[]).map(x=>`<li>${x.name} <span class="muted">(${x.genre||''})</span></li>`).join('') || '<li class="muted">keine Artists</li>';
-  const rel = (r.releases||[]).map(x=>`<li>${x.title} <span class="muted">(${x.type||''})</span></li>`).join('') || '<li class="muted">keine Releases</li>';
-  return `
-    <h3>Songs</h3><ul>${s}</ul>
-    <h3>Artists</h3><ul>${a}</ul>
-    <h3>Releases</h3><ul>${rel}</ul>
-  `;
+/* -------- Utils -------- */
+function toMMSS(sec){
+  const n = Number(sec||0);
+  const m = Math.floor(n/60);
+  const s = Math.floor(n%60);
+  return (m>0 || s>0) ? `${String(m).padStart(1,'0')}:${String(s).padStart(2,'0')}` : '';
+}
+function esc(v){
+  return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

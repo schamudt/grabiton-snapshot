@@ -3,6 +3,10 @@
 <!doctype html>
 <html lang="de">
 <head>
+     <link rel="icon" href="/gio/assets/img/giocon.png" type="image/png">
+     <link rel="apple-touch-icon" href="/gio/assets/img/giocon.png">
+   <meta name="theme-color" content="#000000">
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>gio</title>
