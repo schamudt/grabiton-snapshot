@@ -51,11 +51,7 @@ async function render(route){
     }
     return;
   }
-// nach: store.search.results = res?.data || {songs:[],artists:[],releases:[]};
-const out = document.getElementById('search-out');
-const label = document.getElementById('search-label');
-if (label) label.textContent = q;
-if (out) out.innerHTML = renderResults(store.search.results);
+
   Router.navigateTo('#/home');
 }
 
@@ -70,16 +66,4 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', mainInit);
 } else {
   mainInit();
-}
-
-// Hilfsfunktion oben in app.js platzieren
-function renderResults(r){
-  const s = (r.songs||[]).map(x=>`<li>${x.title} <span class="muted">(#${x.id})</span></li>`).join('') || '<li class="muted">keine Songs</li>';
-  const a = (r.artists||[]).map(x=>`<li>${x.name} <span class="muted">(${x.genre||''})</span></li>`).join('') || '<li class="muted">keine Artists</li>';
-  const rel = (r.releases||[]).map(x=>`<li>${x.title} <span class="muted">(${x.type||''})</span></li>`).join('') || '<li class="muted">keine Releases</li>';
-  return `
-    <h3>Songs</h3><ul>${s}</ul>
-    <h3>Artists</h3><ul>${a}</ul>
-    <h3>Releases</h3><ul>${rel}</ul>
-  `;
 }
