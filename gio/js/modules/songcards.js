@@ -1,8 +1,6 @@
 // /gio/js/modules/songcards.js
-// Rendert SongCards und bindet Like-/Play-Funktionen (SQL-Backend)
-// Enthält: render(), bindLikesDelegation(), Auto-Bind + globaler Like-Sync
+// SongCards rendern + Like-Delegation + Sync mit Player
 
-/* ---------- Render ---------- */
 export function render(list = [], container) {
   if (!container) return;
   container.innerHTML = list.map(song => `
@@ -27,14 +25,11 @@ export function render(list = [], container) {
   `).join('');
 }
 
-/* ---------- Likes: Delegation ---------- */
+// --- Like Toggle (SQL-Backend) ---
 let _likesBound = false;
 
 /**
- * Einmaliges Delegations-Binding für .like-btn.
- * Erwartet pro .songcard:
- *  - data-id
- *  - .like-btn, .like-count, optional .like-icon
+ * Globale Delegation für .like-btn
  */
 export function bindLikesDelegation(root = document) {
   if (_likesBound) return;
@@ -73,7 +68,7 @@ export function bindLikesDelegation(root = document) {
       iconEl?.setAttribute('aria-pressed', String(liked));
       if (countEl) countEl.textContent = String(count);
 
-      // Broadcast → Player und andere Views synchronisieren
+      // Broadcast für Player/andere Views
       document.dispatchEvent(new CustomEvent('gio:like-updated', {
         detail: { song_id: songId, liked, count }
       }));
@@ -87,7 +82,10 @@ export function bindLikesDelegation(root = document) {
   });
 }
 
-/* ---------- Globaler Sync (Player → Cards) ---------- */
+// Auto-Bind global
+bindLikesDelegation(document);
+
+// --- Globaler Sync: reagiert auf Player-Updates ---
 document.addEventListener('gio:like-updated', (ev) => {
   const { song_id, liked, count } = ev.detail || {};
   if (!song_id) return;
@@ -102,6 +100,3 @@ document.addEventListener('gio:like-updated', (ev) => {
   iconEl?.setAttribute('aria-pressed', String(!!liked));
   if (countEl) countEl.textContent = String(Number(count ?? 0));
 });
-
-/* ---------- Auto-Bind aktivieren ---------- */
-bindLikesDelegation(document);
