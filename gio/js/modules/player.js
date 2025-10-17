@@ -1,9 +1,11 @@
 // /gio/js/modules/player.js
-// Player mit SQL-Tracking + UI-Bindings: play_start + Marker 0/5/31 + sichtbare Steuerung
+// Player mit SQL-Tracking + UI-Bindings + Like-Sync (robust)
 
 import { api } from './api.js';
 
 let audio = null;
+let audioBound = false;
+
 let ui = {
   root: null,
   prev: null,
@@ -39,7 +41,10 @@ function ensureAudio() {
   audio = new Audio();
   audio.preload = 'auto';
   audio.crossOrigin = 'anonymous';
-  bindAudioEvents();
+  if (!audioBound) {
+    bindAudioEvents();
+    audioBound = true;
+  }
   return audio;
 }
 
@@ -48,10 +53,7 @@ function bindAudioEvents() {
   audio.addEventListener('playing', () => { tryMark0(); setToggleVisual(false); });
   audio.addEventListener('pause',   () => setToggleVisual(true));
   audio.addEventListener('loadeddata', tryMark0);
-  audio.addEventListener('ended', () => {
-    setToggleVisual(true);
-    resetState();
-  });
+  audio.addEventListener('ended', () => { setToggleVisual(true); resetState(); });
 }
 
 function fmt(t) {
@@ -61,18 +63,9 @@ function fmt(t) {
   return m + ':' + String(s).padStart(2,'0');
 }
 
-function updateTitle(text) {
-  if (ui.title) ui.title.textContent = text;
-}
-
-function updateTime(t) {
-  if (ui.time) ui.time.textContent = fmt(t);
-}
-
-function setToggleVisual(paused) {
-  if (!ui.toggle) return;
-  ui.toggle.textContent = paused ? '▶︎' : '⏸';
-}
+function updateTitle(text) { if (ui.title) ui.title.textContent = text; }
+function updateTime(t) { if (ui.time) ui.time.textContent = fmt(t); }
+function setToggleVisual(paused) { if (ui.toggle) ui.toggle.textContent = paused ? '▶︎' : '⏸'; }
 
 function tryMark0() {
   if (!current.playId || current.marks.m0) return;
@@ -106,7 +99,7 @@ async function playSong(song) {
   // gleiches Lied → Toggle
   if (current.song && current.song.id === song.id) {
     if (audio && !audio.paused) { audio.pause(); return; }
-    if (audio) { audio.play().catch(console.error); return; }
+    if (audio) { audio.play().catch(()=>{}); return; } // AbortError ignorieren
   }
 
   stop(); // alten stoppen
@@ -129,7 +122,6 @@ async function playSong(song) {
 
   current.marks = { m0:false, m5:false, m31:false };
 
-  // mark0 Fallback
   if (current.playId) {
     current.mark0Timer = setTimeout(() => {
       if (!current.marks.m0 && current.playId) {
@@ -140,21 +132,15 @@ async function playSong(song) {
     }, 400);
   }
 
-  // Player-Like-Zähler laden
   refreshPlayerLike();
 
-  try { await audio.play(); } catch (err) { console.error('audio_play_error', err); }
+  try { await audio.play(); } catch (_) { /* AbortError ok */ }
 }
 
 function pause() { if (audio) audio.pause(); }
-function resume() { if (audio && audio.paused) audio.play().catch(console.error); }
-
+function resume() { if (audio && audio.paused) audio.play().catch(()=>{}); }
 function stop() {
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
-    audio.src = '';
-  }
+  if (audio) { audio.pause(); audio.currentTime = 0; audio.src = ''; }
   resetState();
 }
 
@@ -190,9 +176,15 @@ function bindPlayerUI() {
   ui.mute   = document.getElementById('gio-player-mute');
   ui.vol    = document.getElementById('gio-player-volume');
 
-  ui.toggle?.addEventListener('click', () => {
-    if (!audio) return;
-    if (audio.paused) resume(); else pause();
+  // Play/Pause mit AbortError-Schutz
+  let _toggleBusy = false;
+  ui.toggle?.addEventListener('click', async () => {
+    if (_toggleBusy || !audio) return;
+    _toggleBusy = true;
+    try {
+      if (audio.paused) { await audio.play().catch(()=>{}); }
+      else { audio.pause(); }
+    } finally { _toggleBusy = false; }
   });
 
   ui.mute?.addEventListener('click', () => {
@@ -207,8 +199,7 @@ function bindPlayerUI() {
     audio.volume = Math.min(1, Math.max(0, v));
   });
 
-  // Like im Player
-    // Like im Player
+  // Player-Like
   ui.likeBtn?.addEventListener('click', async () => {
     if (!current.song?.id) return;
     try {
@@ -228,7 +219,6 @@ function bindPlayerUI() {
       console.error('player_like_fail', e); // console
     }
   });
-
 }
 
 async function refreshPlayerLike() {
@@ -236,10 +226,17 @@ async function refreshPlayerLike() {
   try {
     const map = await api.likeCounts([current.song.id]);
     ui.likeCount.textContent = String(map[String(current.song.id)] ?? 0);
-  } catch (e) {
-    // still ok
-  }
+  } catch (_) { /* ignore */ }
 }
+
+/* --- Sync: auf SongCard-Updates reagieren --- */
+document.addEventListener('gio:like-updated', (ev) => {
+  const { song_id, liked, count } = ev.detail || {};
+  if (!current.song?.id || current.song.id !== song_id) return;
+  if (ui.likeCount) ui.likeCount.textContent = String(Number(count ?? 0));
+  ui.likeBtn?.classList.toggle('is-liked', !!liked);
+  ui.likeBtn?.setAttribute('aria-pressed', String(!!liked));
+});
 
 /* ---------- Public API ---------- */
 export function initPlayer() {
