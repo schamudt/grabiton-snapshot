@@ -1,198 +1,86 @@
-// /gio/js/app.js
-// Bootstrap: Shell-Bindings, Router, Suche, Player, SongCards
+// /gio/js/modules/songcards.js
+// Rendert SongCards und bindet Like-/Play-Funktionen
+// Jetzt mit SQL-basiertem Like-System und Auto-Bind
 
-import { Router } from './modules/router.js';
-import { store } from './modules/store.js';
-import { api } from './modules/api.js';
-import { initPlayer } from './modules/player.js';
-import { render as renderSongCards } from './modules/songcards.js';
-
-let mainEl = null;
-
-/* ---------- Shell ---------- */
-function mountShellBindings() {
-  document.getElementById('gio-toggle-sidebar')?.addEventListener('click', () => {
-    document.getElementById('gio-sidebar')?.classList.toggle('collapsed');
-  });
-
-  const form = document.getElementById('gio-search');
-  const input = document.getElementById('gio-q');
-
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const q = (input?.value || '').trim();
-    if (q.length < 2) return;
-    Router.navigateTo(`#/search?q=${encodeURIComponent(q)}`);
-  });
-
-  input?.addEventListener('input', (e) => {
-    store.search.q = e.target.value;
-  });
+export function render(list = [], container) {
+  if (!container) return;
+  container.innerHTML = list.map(song => `
+    <div class="songcard" data-id="${song.id}">
+      <div class="cover" data-audio="${song.audio_url || ''}">
+        <img src="${song.cover_url || '/gio/assets/img/cover_placeholder.jpg'}" alt="">
+        <div class="overlay">
+          <button class="play-btn" title="Abspielen">▶</button>
+        </div>
+      </div>
+      <div class="meta">
+        <div class="title">${song.title}</div>
+        <div class="artist">${song.artist_name || ''}</div>
+        <div class="like-zone">
+          <button class="like-btn" title="Gefällt mir">
+            <span class="like-icon" aria-pressed="false">♥</span>
+            <span class="like-count">0</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
 }
 
-/* ---------- HOME VIEW (SQL-Feed) ---------- */
-async function loadHome() {
-  if (!mainEl) mainEl = document.getElementById('gio-main');
+// --- Like Toggle (SQL-Backend) ---
+let _likesBound = false;
 
-  // view skeleton laden
-  mainEl.innerHTML = '<div class="loading">Lade Inhalte…</div>';
-  const html = await fetch('/gio/views/home.php').then(r => r.text());
-  mainEl.innerHTML = html;
+/**
+ * Bindet einmalig eine Event-Delegation für .like-btn auf dem gesamten Dokument.
+ * Erwartet pro .songcard:
+ *   - data-id="<song_id>"
+ *   - .like-btn  (Button/Link)
+ *   - .like-count (Span/Div für Zahl)
+ *   - optional .like-icon (für aria-pressed)
+ */
+export function bindLikesDelegation(root = document) {
+  if (_likesBound) return;
+  _likesBound = true;
 
-  const elNew = document.getElementById('home-new');
-  const elTrend = document.getElementById('home-trending');
+  root.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.like-btn');
+    if (!btn) return;
 
-  try {
-    const feed = await api.homeFeed(); // { trending:[], newest:[] }
+    const card = btn.closest('.songcard');
+    if (!card) return;
 
-    // SongCards rendern
-    renderSongCards(elTrend, Array.isArray(feed.trending) ? feed.trending : []);
-    renderSongCards(elNew, Array.isArray(feed.newest) ? feed.newest : []);
+    const songId = Number(card.dataset.id);
+    if (!songId) return;
 
-    // Like-Counts nachladen und einblenden
-    const ids = [
-      ...new Set([
-        ...(feed.trending || []).map(s => s.id),
-        ...(feed.newest || []).map(s => s.id),
-      ]),
-    ];
-    if (ids.length) {
-      const counts = await api.likeCounts(ids);
-      for (const [id, c] of Object.entries(counts)) {
-        const el = document.querySelector(`.songcard[data-id="${id}"] .like-count`);
-        if (el) el.textContent = String(c);
-      }
+    const countEl = card.querySelector('.like-count');
+    const iconEl  = card.querySelector('.like-icon') || btn;
+
+    // Optimistisches UI
+    const wasLiked = btn.classList.contains('is-liked');
+    const prev = parseInt(countEl?.textContent || '0', 10) || 0;
+
+    btn.classList.toggle('is-liked', !wasLiked);
+    iconEl?.setAttribute('aria-pressed', String(!wasLiked));
+    if (countEl) countEl.textContent = String(Math.max(0, prev + (wasLiked ? -1 : 1)));
+
+    try {
+      const { api } = await import('/gio/js/modules/api.js');
+      const res = await api.likeToggle(songId);
+
+      // Server-Wahrheit übernehmen
+      btn.classList.toggle('is-liked', !!res.liked);
+      iconEl?.setAttribute('aria-pressed', String(!!res.liked));
+      if (countEl) countEl.textContent = String(res.count ?? 0);
+    } catch (err) {
+      console.error('like_toggle_error', err); // console
+      // Rollback
+      btn.classList.toggle('is-liked', wasLiked);
+      iconEl?.setAttribute('aria-pressed', String(wasLiked));
+      if (countEl) countEl.textContent = String(prev);
     }
-  } catch (err) {
-    console.error('HomeFeed Error', err); // console
-    mainEl.querySelector('.loading')?.remove();
-    const msg = document.createElement('p');
-    msg.className = 'error';
-    msg.textContent = 'Fehler beim Laden des Feeds.';
-    mainEl.appendChild(msg);
-  }
+  });
 }
 
-/* ---------- SEARCH VIEW (SQL) ---------- */
-async function loadSearch(route) {
-  if (!mainEl) mainEl = document.getElementById('gio-main');
+// --- Auto-Bind global aktivieren ---
+bindLikesDelegation(document);
 
-  const params = new URLSearchParams(route.query);
-  const q = params.get('q') || store.search.q || '';
 
-  const html = await fetch('/gio/views/search.php').then(r => r.text());
-  mainEl.innerHTML = html;
-
-  const label = document.getElementById('search-label');
-  if (label) label.textContent = q;
-
-  if (q.length < 2) return;
-
-  try {
-    store.search.loading = true;
-
-    // API liefert {query,type,songs,artists,releases,page}
-    const data = await api.search({ q, type: 'all', limit: 20, offset: 0 });
-
-    store.search.results = data;
-    store.search.loading = false;
-
-    // Songs als SongCards rendern
-    const songs = (data.songs || []).map(s => ({
-      id: s.id,
-      title: s.title,
-      artist: s.artist_name || '',
-      audio_url: s.audio_url || '/gio/assets/audio/demo_song.mp3', // bis echte URLs vorhanden sind
-      cover_url: s.cover_url || '/gio/assets/img/placeholder.jpg',
-      duration: toMMSS(s.duration_sec),
-    }));
-    renderSongCards(document.getElementById('search-songs'), songs);
-
-    // Artists / Releases einfach listen
-    const others = document.getElementById('search-others');
-    if (others) {
-      const a = (data.artists || []).map(x => `* ${esc(x.name)} ${esc(x.genre || '')}`).join('\n') || '* keine Artists';
-      const r = (data.releases || []).map(x => `* ${esc(x.title)} ${esc(x.type || '')}`).join('\n') || '* keine Releases';
-      others.innerHTML = `
-#### Artists
-
-${escHtml(a)}
-#### Releases
-
-${escHtml(r)}
-`;
-    }
-
-    // Like-Counts für Suchsongs
-    const ids = songs.map(s => s.id);
-    if (ids.length) {
-      const counts = await api.likeCounts(ids);
-      for (const [id, c] of Object.entries(counts)) {
-        const el = document.querySelector(`.songcard[data-id="${id}"] .like-count`);
-        if (el) el.textContent = String(c);
-      }
-    }
-  } catch (err) {
-    store.search.loading = false;
-    console.error('Search Error', err); // console
-    const el = document.getElementById('search-songs');
-    if (el) el.innerHTML = '<p class="error">Fehler bei der Suche.</p>';
-  }
-}
-
-/* ---------- Router ---------- */
-async function render(route) {
-  if (!mainEl) mainEl = document.getElementById('gio-main');
-
-  if (route.name === 'home') {
-    await loadHome();
-    return;
-  }
-
-  if (route.name === 'search') {
-    await loadSearch(route);
-    return;
-  }
-
-  // Fallback
-  Router.navigateTo('#/home');
-}
-
-/* ---------- Init ---------- */
-function mainInit() {
-  mainEl = document.getElementById('gio-main');
-  mountShellBindings();
-  initPlayer();
-  Router.initRouter(render);
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', mainInit);
-} else {
-  mainInit();
-}
-
-/* ---------- Utils ---------- */
-function toMMSS(sec) {
-  const n = Number(sec || 0);
-  const m = Math.floor(n / 60);
-  const s = Math.floor(n % 60);
-  if (m === 0 && s === 0) return '';
-  return `${String(m).padStart(1, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function esc(v) {
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-function escHtml(txt) {
-  // ersetzt Zeilenumbrüche in <pre>-ähnlicher Darstellung
-  return `<pre>${esc(txt)}</pre>`;
-}
-
-// Für manuelle Tests
-window.loadHome = loadHome;
