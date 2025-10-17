@@ -1,14 +1,16 @@
 // /gio/js/app.js
 // Bootstrap: Shell-Bindings, Router, Suche, Player, SongCards
+
 import { Router } from './modules/router.js';
 import { store } from './modules/store.js';
 import { api } from './modules/api.js';
 import { initPlayer } from './modules/player.js';
-import { renderSongCards } from './modules/songcards.js';
+import { render as renderSongCards } from './modules/songcards.js';
 
 let mainEl = null;
 
-function mountShellBindings(){
+/* ---------- Shell ---------- */
+function mountShellBindings() {
   document.getElementById('gio-toggle-sidebar')?.addEventListener('click', () => {
     document.getElementById('gio-sidebar')?.classList.toggle('collapsed');
   });
@@ -22,76 +24,142 @@ function mountShellBindings(){
     if (q.length < 2) return;
     Router.navigateTo(`#/search?q=${encodeURIComponent(q)}`);
   });
+
   input?.addEventListener('input', (e) => {
     store.search.q = e.target.value;
   });
 }
 
-async function render(route){
+/* ---------- HOME VIEW (SQL-Feed) ---------- */
+async function loadHome() {
+  if (!mainEl) mainEl = document.getElementById('gio-main');
+
+  // view skeleton laden
+  mainEl.innerHTML = '<div class="loading">Lade Inhalte…</div>';
+  const html = await fetch('/gio/views/home.php').then(r => r.text());
+  mainEl.innerHTML = html;
+
+  const elNew = document.getElementById('home-new');
+  const elTrend = document.getElementById('home-trending');
+
+  try {
+    const feed = await api.homeFeed(); // { trending:[], newest:[] }
+
+    // SongCards rendern
+    renderSongCards(elTrend, Array.isArray(feed.trending) ? feed.trending : []);
+    renderSongCards(elNew, Array.isArray(feed.newest) ? feed.newest : []);
+
+    // Like-Counts nachladen und einblenden
+    const ids = [
+      ...new Set([
+        ...(feed.trending || []).map(s => s.id),
+        ...(feed.newest || []).map(s => s.id),
+      ]),
+    ];
+    if (ids.length) {
+      const counts = await api.likeCounts(ids);
+      for (const [id, c] of Object.entries(counts)) {
+        const el = document.querySelector(`.songcard[data-id="${id}"] .like-count`);
+        if (el) el.textContent = String(c);
+      }
+    }
+  } catch (err) {
+    console.error('HomeFeed Error', err); // console
+    mainEl.querySelector('.loading')?.remove();
+    const msg = document.createElement('p');
+    msg.className = 'error';
+    msg.textContent = 'Fehler beim Laden des Feeds.';
+    mainEl.appendChild(msg);
+  }
+}
+
+/* ---------- SEARCH VIEW (SQL) ---------- */
+async function loadSearch(route) {
+  if (!mainEl) mainEl = document.getElementById('gio-main');
+
+  const params = new URLSearchParams(route.query);
+  const q = params.get('q') || store.search.q || '';
+
+  const html = await fetch('/gio/views/search.php').then(r => r.text());
+  mainEl.innerHTML = html;
+
+  const label = document.getElementById('search-label');
+  if (label) label.textContent = q;
+
+  if (q.length < 2) return;
+
+  try {
+    store.search.loading = true;
+
+    // API liefert {query,type,songs,artists,releases,page}
+    const data = await api.search({ q, type: 'all', limit: 20, offset: 0 });
+
+    store.search.results = data;
+    store.search.loading = false;
+
+    // Songs als SongCards rendern
+    const songs = (data.songs || []).map(s => ({
+      id: s.id,
+      title: s.title,
+      artist: s.artist_name || '',
+      audio_url: s.audio_url || '/gio/assets/audio/demo_song.mp3', // bis echte URLs vorhanden sind
+      cover_url: s.cover_url || '/gio/assets/img/placeholder.jpg',
+      duration: toMMSS(s.duration_sec),
+    }));
+    renderSongCards(document.getElementById('search-songs'), songs);
+
+    // Artists / Releases einfach listen
+    const others = document.getElementById('search-others');
+    if (others) {
+      const a = (data.artists || []).map(x => `* ${esc(x.name)} ${esc(x.genre || '')}`).join('\n') || '* keine Artists';
+      const r = (data.releases || []).map(x => `* ${esc(x.title)} ${esc(x.type || '')}`).join('\n') || '* keine Releases';
+      others.innerHTML = `
+#### Artists
+
+${escHtml(a)}
+#### Releases
+
+${escHtml(r)}
+`;
+    }
+
+    // Like-Counts für Suchsongs
+    const ids = songs.map(s => s.id);
+    if (ids.length) {
+      const counts = await api.likeCounts(ids);
+      for (const [id, c] of Object.entries(counts)) {
+        const el = document.querySelector(`.songcard[data-id="${id}"] .like-count`);
+        if (el) el.textContent = String(c);
+      }
+    }
+  } catch (err) {
+    store.search.loading = false;
+    console.error('Search Error', err); // console
+    const el = document.getElementById('search-songs');
+    if (el) el.innerHTML = '<p class="error">Fehler bei der Suche.</p>';
+  }
+}
+
+/* ---------- Router ---------- */
+async function render(route) {
   if (!mainEl) mainEl = document.getElementById('gio-main');
 
   if (route.name === 'home') {
-    const html = await fetch('/gio/views/home.php').then(r=>r.text());
-    mainEl.innerHTML = html;
-
-    // Demo-Daten bis DB aktiv ist
-    const demo = [{
-      id: 1,
-      title: 'Demo Song',
-      artist: 'Artist',
-      audio_url: '/gio/assets/demo.mp3',
-      cover_url: '/gio/assets/img/placeholder.jpg',
-      duration: '3:17'
-    }];
-    const elNew = document.getElementById('home-new');
-    const elTrend = document.getElementById('home-trending');
-    renderSongCards(elNew, demo);
-    renderSongCards(elTrend, []);
+    await loadHome();
     return;
   }
 
   if (route.name === 'search') {
-    const params = new URLSearchParams(route.query);
-    const q = params.get('q') || store.search.q || '';
-    const html = await fetch('/gio/views/search.php').then(r=>r.text());
-    mainEl.innerHTML = html;
-
-    const label = document.getElementById('search-label');
-    if (label) label.textContent = q;
-
-    if (q.length >= 2) {
-      store.search.loading = true;
-      const res = await api.search(q);
-      const data = res?.data || {songs:[],artists:[],releases:[]};
-      store.search.results = data;
-      store.search.loading = false;
-
-      // Songs als SongCards rendern
-      const songs = (data.songs || []).map(s => ({
-        id: s.id,
-        title: s.title,
-        artist: '', // optional später aus Join
-        audio_url: '/gio/assets/demo.mp3', // bis echte URLs da sind
-        cover_url: s.cover_url || '/gio/assets/img/placeholder.jpg',
-        duration: toMMSS(s.duration_sec)
-      }));
-      renderSongCards(document.getElementById('search-songs'), songs);
-
-      // Artists/Releases minimal
-      const others = document.getElementById('search-others');
-      if (others) {
-        const a = (data.artists||[]).map(x=>`<li>${esc(x.name)} <span class="muted">${esc(x.genre||'')}</span></li>`).join('') || '<li class="muted">keine Artists</li>';
-        const r = (data.releases||[]).map(x=>`<li>${esc(x.title)} <span class="muted">${esc(x.type||'')}</span></li>`).join('') || '<li class="muted">keine Releases</li>';
-        others.innerHTML = `<h4>Artists</h4><ul>${a}</ul><h4>Releases</h4><ul>${r}</ul>`;
-      }
-    }
+    await loadSearch(route);
     return;
   }
 
+  // Fallback
   Router.navigateTo('#/home');
 }
 
-function mainInit(){
+/* ---------- Init ---------- */
+function mainInit() {
   mainEl = document.getElementById('gio-main');
   mountShellBindings();
   initPlayer();
@@ -104,13 +172,27 @@ if (document.readyState === 'loading') {
   mainInit();
 }
 
-/* -------- Utils -------- */
-function toMMSS(sec){
-  const n = Number(sec||0);
-  const m = Math.floor(n/60);
-  const s = Math.floor(n%60);
-  return (m>0 || s>0) ? `${String(m).padStart(1,'0')}:${String(s).padStart(2,'0')}` : '';
+/* ---------- Utils ---------- */
+function toMMSS(sec) {
+  const n = Number(sec || 0);
+  const m = Math.floor(n / 60);
+  const s = Math.floor(n % 60);
+  if (m === 0 && s === 0) return '';
+  return `${String(m).padStart(1, '0')}:${String(s).padStart(2, '0')}`;
 }
-function esc(v){
-  return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function esc(v) {
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
+function escHtml(txt) {
+  // ersetzt Zeilenumbrüche in <pre>-ähnlicher Darstellung
+  return `<pre>${esc(txt)}</pre>`;
+}
+
+// Für manuelle Tests
+window.loadHome = loadHome;
