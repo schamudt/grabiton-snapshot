@@ -1,203 +1,155 @@
 // /gio/js/modules/player.js
-// Player-Core: Queue, Play/Pause, Netto-Timer (0s/5s/31s)
-import { store } from './store.js';
+// Player mit SQL-Tracking: play_start + Marker 0/5/31 (robust)
 
-const ms5  = 5000;
-const ms31 = 31000;
+import { api } from './api.js';
 
-async function startIfNeeded(){
-  if (store.player.play_id || !store.player?.now?.id) return;
-  try{
-    const r = await fetch('/gio/api/v1/plays/start.php',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({song_id: store.player.now.id})
-    });
-    const x = await r.json();
-    if (x?.ok) store.player.play_id = x.data.play_id;
-  }catch(e){}
+let audio = null;
+let current = {
+  song: null,         // { id, title, artist_name, audio_url }
+  playId: null,       // number|null
+  marks: { m0:false, m5:false, m31:false },
+  mark0Timer: null,   // Fallback-Timer
+};
+
+function resetState() {
+  current.song = null;
+  current.playId = null;
+  current.marks = { m0:false, m5:false, m31:false };
+  if (current.mark0Timer) {
+    clearTimeout(current.mark0Timer);
+    current.mark0Timer = null;
+  }
 }
 
-function mark(at){
-  if (!store.player.play_id){ console.warn('mark skipped, no play_id', at); return; }
-  fetch('/gio/api/v1/plays/mark.php',{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({play_id: store.player.play_id, at})
-  }).catch(()=>{});
+function ensureAudio() {
+  if (audio) return audio;
+  audio = new Audio();
+  audio.preload = 'auto';
+  audio.crossOrigin = 'anonymous';
+  bindAudioEvents();
+  return audio;
 }
 
-let elAudio, btnPlay, btnPrev, btnNext, elMeta, elTime, btnLike, elLikeCount;
-let tick = null;
-let lastWall = 0;
+function bindAudioEvents() {
+  audio.addEventListener('timeupdate', onTimeUpdate);
 
-function fmt(sec){
-  sec = Math.max(0, Math.floor(sec));
-  const m = String(Math.floor(sec/60)).padStart(2,'0');
-  const s = String(sec%60).padStart(2,'0');
-  return `${m}:${s}`;
+  // Marker 0 sofort bei Start, falls timeupdate spät kommt
+  audio.addEventListener('playing', tryMark0);
+  audio.addEventListener('loadeddata', tryMark0);
+
+  audio.addEventListener('ended', () => {
+    resetState();
+  });
 }
 
-function updateUI(){
-  const now = store.player.now;
-  elMeta.textContent = now ? `${now.title || 'Unbenannt'} — ${now.artist || ''}` : 'Nichts ausgewählt';
-  elTime.textContent = fmt(elAudio.currentTime || 0);
-  btnPlay.textContent = store.player.playing ? '⏸' : '▶';
+function tryMark0() {
+  if (!current.playId || current.marks.m0) return;
+  current.marks.m0 = true;
+  api.playMark(current.playId, 0).catch(e => console.error('mark0_fail', e)); // console
 }
 
-function startTick(){
-  if (tick) return;
-  lastWall = performance.now();
-  tick = setInterval(() => {
-    if (!store.player.playing) return;
-    const nowTs = performance.now();
-    const delta = nowTs - lastWall;
-    lastWall = nowTs;
+async function onTimeUpdate() {
+  if (!current.playId) return;
+  const t = audio.currentTime || 0;
 
-    const p = store.player.now;
-    if (!p) return;
-
-    p.playedMs = (p.playedMs || 0) + delta;
-
-    if (!p.mark5 && p.playedMs >= ms5){
-      p.mark5 = true;
-      mark(5);
-      console.log('[plays] mark5s', {song_id: p.id});
-    }
-    if (!p.mark31 && p.playedMs >= ms31){
-      p.mark31 = true;
-      mark(31);
-      console.log('[plays] mark31s', {song_id: p.id});
-    }
-
-    elTime.textContent = fmt(elAudio.currentTime || 0);
-  }, 250);
+  // Falls playing/loadeddata nicht feuerten, hier m0 spätestens erzwingen
+  if (!current.marks.m0 && t >= 0.05) {
+    current.marks.m0 = true;
+    api.playMark(current.playId, 0).catch(e => console.error('mark0_fail', e)); // console
+  }
+  if (!current.marks.m5 && t >= 5) {
+    current.marks.m5 = true;
+    api.playMark(current.playId, 5).catch(e => console.error('mark5_fail', e)); // console
+  }
+  if (!current.marks.m31 && t >= 31) {
+    current.marks.m31 = true;
+    api.playMark(current.playId, 31).catch(e => console.error('mark31_fail', e)); // console
+  }
 }
 
-function stopTick(){
-  if (tick){ clearInterval(tick); tick = null; }
-}
+async function playSong(song) {
+  if (!song || !song.id) return;
+  const src = song.audio_url || '/gio/assets/audio/demo_song.mp3';
 
-function bindDOM(){
-  elAudio = document.getElementById('gio-audio');
-  btnPlay = document.getElementById('pl-play');
-  btnPrev = document.getElementById('pl-prev');
-  btnNext = document.getElementById('pl-next');
-  elMeta  = document.getElementById('pl-meta');
-  elTime  = document.getElementById('pl-time');
-  btnLike = document.getElementById('pl-like');
-  elLikeCount = document.getElementById('pl-like-count');
+  // Gleiches Lied → Toggle
+  if (current.song && current.song.id === song.id) {
+    if (audio && !audio.paused) { audio.pause(); return; }
+    if (audio) { audio.play().catch(console.error); return; }
+  }
 
-  btnLike?.addEventListener('click', async () => {
-    const s = store.player.now;
-    if (!s?.id) return;
-    try{
-      const r = await fetch('/gio/api/v1/likes/like_song.php',{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ song_id: s.id })
-      });
-      const x = await r.json();
-      if (x?.ok){
-        btnLike.textContent = x.data.liked ? '♥' : '♡';
-        elLikeCount.textContent = String(x.data.count ?? 0);
+  // Vorherigen Stop
+  stop();
+
+  // Zustand setzen
+  current.song = { ...song };
+  ensureAudio();
+  audio.src = src;
+
+  // play_start
+  try {
+    const res = await api.playStart(Number(song.id));
+    current.playId = Number(res.play_id || 0) || null;
+  } catch (e) {
+    console.error('play_start_fail', e); // console
+    current.playId = null; // lokal weiter abspielen
+  }
+
+  current.marks = { m0:false, m5:false, m31:false };
+
+  // Fallback: mark0 nach 400ms schicken, falls Events nicht greifen
+  if (current.playId) {
+    current.mark0Timer = setTimeout(() => {
+      if (!current.marks.m0 && current.playId) {
+        current.marks.m0 = true;
+        api.playMark(current.playId, 0).catch(err => console.error('mark0_fallback_fail', err)); // console
       }
-    }catch(e){ console.error('like_song.php', e); }
+      current.mark0Timer = null;
+    }, 400);
+  }
+
+  try {
+    await audio.play();
+  } catch (err) {
+    console.error('audio_play_error', err); // console
+  }
+}
+
+function pause() { if (audio) audio.pause(); }
+function resume() { if (audio && audio.paused) audio.play().catch(console.error); }
+
+function stop() {
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = '';
+  }
+  resetState();
+}
+
+/* ---------- UI: Play-Button in SongCards ---------- */
+function bindGlobalPlayClicks(root = document) {
+  root.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.play-btn');
+    if (!btn) return;
+    const card = btn.closest('.songcard');
+    if (!card) return;
+
+    const id = Number(card.dataset.id || 0);
+    const cover = card.querySelector('.cover');
+    const src = cover?.dataset.audio || '/gio/assets/audio/demo_song.mp3';
+    const title = card.querySelector('.title')?.textContent?.trim() || '';
+    const artist_name = card.querySelector('.artist')?.textContent?.trim() || '';
+
+    playSong({ id, audio_url: src, title, artist_name });
   });
-
-  btnPlay?.addEventListener('click', () => {
-    if (!store.player.now){ updateUI(); return; }
-    if (store.player.playing) pause(); else play();
-  });
-  btnPrev?.addEventListener('click', prev);
-  btnNext?.addEventListener('click', next);
-
-  elAudio.addEventListener('play', async () => {
-    const p = store.player.now;
-    store.player.playing = true;
-
-    await startIfNeeded();          // play_id holen
-    if (p && !p.mark0){
-      p.mark0 = true;
-      mark(0);
-      console.log('[plays] mark0s', {song_id: p.id});
-    }
-
-    startTick();
-    updateUI();
-  });
-
-  elAudio.addEventListener('pause', () => {
-    store.player.playing = false;
-    stopTick();
-    updateUI();
-  });
-
-  elAudio.addEventListener('ended', () => {
-    stopTick();
-    store.player.playing = false;
-    next();
-  });
-
-  elAudio.addEventListener('timeupdate', () => {
-    elTime.textContent = fmt(elAudio.currentTime || 0);
-  });
 }
 
-function load(song){
-  if (!song || !song.audio_url) { console.warn('Kein audio_url'); return; }
-  // neuer Track → IDs/Marker/Likes zurücksetzen
-  store.player.play_id = null;
-  song.playedMs = 0;
-  song.mark0 = false;
-  song.mark5 = false;
-  song.mark31 = false;
-  if (btnLike) btnLike.textContent = '♡';
-  if (elLikeCount) elLikeCount.textContent = '0';
-
-  store.player.now = song;
-  elAudio.src = song.audio_url;
-  elAudio.currentTime = 0;
-  updateUI();
-}
-
-function play(){
-  if (!store.player.now){ console.warn('Kein Track geladen'); return; }
-  elAudio.play().catch(err => console.error('Audio play()', err));
-}
-
-function pause(){ elAudio.pause(); }
-
-function next(){
-  const q = store.player.queue || [];
-  if (!q.length) { updateUI(); return; }
-  store.player.index = (store.player.index ?? -1) + 1;
-  if (store.player.index >= q.length) store.player.index = 0;
-  const song = q[store.player.index];
-  load(song);
-  play();
-}
-
-function prev(){
-  const q = store.player.queue || [];
-  if (!q.length) { updateUI(); return; }
-  store.player.index = (store.player.index ?? 0) - 1;
-  if (store.player.index < 0) store.player.index = Math.max(0, q.length - 1);
-  const song = q[store.player.index];
-  load(song);
-  play();
-}
-
-export function setQueue(list){
-  store.player.queue = Array.isArray(list) ? list.slice() : [];
-  store.player.index = -1;
-}
-
-export function enqueue(listOrItem){
-  const add = Array.isArray(listOrItem) ? listOrItem : [listOrItem];
-  store.player.queue = (store.player.queue || []).concat(add);
-  if (!store.player.now && store.player.queue.length){ next(); }
-}
-
-export function initPlayer(){
-  bindDOM();
-  updateUI();
-  window.player = { play, pause, next, prev, setQueue, enqueue, load };
+/* ---------- Public API ---------- */
+export function initPlayer() {
+  ensureAudio();
+  bindGlobalPlayClicks(document);
+  window.player = {
+    playSong, pause, resume, stop,
+    get state() { return { ...current, paused: audio?.paused ?? true, t: audio?.currentTime ?? 0 }; },
+  };
 }
