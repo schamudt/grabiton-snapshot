@@ -1,126 +1,198 @@
-// /gio/js/modules/songcards.js
-// Rendert SongCards und bindet Cover=Play sowie Like-Toggle.
-// Abhängigkeiten: window.player (aus player.js), fetch-APIs like_song.php und like_song_count.php
-import { store } from './store.js';
+// /gio/js/app.js
+// Bootstrap: Shell-Bindings, Router, Suche, Player, SongCards
 
-export function renderSongCards(container, list){
-  if (!container) return;
-  const safe = Array.isArray(list) ? list : [];
-  container.innerHTML = safe.map(cardHTML).join('');
-  bindEvents(container, safe);
-  preloadLikeCounts(safe);
-}
+import { Router } from './modules/router.js';
+import { store } from './modules/store.js';
+import { api } from './modules/api.js';
+import { initPlayer } from './modules/player.js';
+import { render as renderSongCards } from './modules/songcards.js';
 
-function cardHTML(s){
-  const id   = esc(s.id);
-  const t    = esc(s.title || 'Unbekannt');
-  const a    = esc(s.artist || '');
-  const cover= esc(s.cover_url || '/gio/assets/img/placeholder.jpg');
-  const dur  = esc(s.duration || ''); // z.B. "3:17"; optional
-  const audio= esc(s.audio_url || '');
-  return `
-  <article class="song-card" data-id="${id}" data-audio="${audio}">
-    <div class="cover" tabindex="0">
-      <img src="${cover}" alt="">
-      <span class="meta">${dur}</span>
-    </div>
-    <div class="body">
-      <div class="title">${t}</div>
-      <div class="artist">${a}</div>
-      <div class="row">
-        <button class="btn like" type="button">♡</button>
-        <span class="count">0</span>
-      </div>
-    </div>
-  </article>`;
-}
+let mainEl = null;
 
-function bindEvents(container, list){
-  // Cover-Klick = Play
-  container.addEventListener('click', ev => {
-    const cover = ev.target.closest('.cover');
-    if (cover){
-      const card = cover.closest('.song-card');
-      const id = toInt(card?.dataset?.id);
-      const song = list.find(x => x.id === id);
-      const cur = store?.player?.now;
-      if (cur && cur.id === id){
-        if (store.player.playing) window.player.pause();
-        else window.player.play();
-        return;
-      }
-
-      if (song) window.player.enqueue(song);
-      return;
-    }
-    // Like-Toggle
-    const likeBtn = ev.target.closest('.btn.like');
-    if (likeBtn){
-      const card = likeBtn.closest('.song-card');
-      const id = toInt(card?.dataset?.id);
-      toggleLike(card, id);
-    }
+/* ---------- Shell ---------- */
+function mountShellBindings() {
+  document.getElementById('gio-toggle-sidebar')?.addEventListener('click', () => {
+    document.getElementById('gio-sidebar')?.classList.toggle('collapsed');
   });
 
-  // Tastatur: Enter/Space auf Cover
- container.addEventListener('keydown', ev => {
-  const cover = ev.target.closest?.('.cover');
-  if (!cover) return;
-  if (ev.key === 'Enter' || ev.key === ' '){
-    ev.preventDefault();
-    const card = cover.closest('.song-card');
-    const id = toInt(card?.dataset?.id);
-    const song = list.find(x => x.id === id);
+  const form = document.getElementById('gio-search');
+  const input = document.getElementById('gio-q');
 
-    const cur = store?.player?.now;
-    if (cur && cur.id === id){
-      if (store.player.playing) window.player.pause();
-      else window.player.play();
-      return;
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = (input?.value || '').trim();
+    if (q.length < 2) return;
+    Router.navigateTo(`#/search?q=${encodeURIComponent(q)}`);
+  });
+
+  input?.addEventListener('input', (e) => {
+    store.search.q = e.target.value;
+  });
+}
+
+/* ---------- HOME VIEW (SQL-Feed) ---------- */
+async function loadHome() {
+  if (!mainEl) mainEl = document.getElementById('gio-main');
+
+  // view skeleton laden
+  mainEl.innerHTML = '<div class="loading">Lade Inhalte…</div>';
+  const html = await fetch('/gio/views/home.php').then(r => r.text());
+  mainEl.innerHTML = html;
+
+  const elNew = document.getElementById('home-new');
+  const elTrend = document.getElementById('home-trending');
+
+  try {
+    const feed = await api.homeFeed(); // { trending:[], newest:[] }
+
+    // SongCards rendern
+    renderSongCards(elTrend, Array.isArray(feed.trending) ? feed.trending : []);
+    renderSongCards(elNew, Array.isArray(feed.newest) ? feed.newest : []);
+
+    // Like-Counts nachladen und einblenden
+    const ids = [
+      ...new Set([
+        ...(feed.trending || []).map(s => s.id),
+        ...(feed.newest || []).map(s => s.id),
+      ]),
+    ];
+    if (ids.length) {
+      const counts = await api.likeCounts(ids);
+      for (const [id, c] of Object.entries(counts)) {
+        const el = document.querySelector(`.songcard[data-id="${id}"] .like-count`);
+        if (el) el.textContent = String(c);
+      }
     }
-    if (song) window.player.enqueue(song);
+  } catch (err) {
+    console.error('HomeFeed Error', err); // console
+    mainEl.querySelector('.loading')?.remove();
+    const msg = document.createElement('p');
+    msg.className = 'error';
+    msg.textContent = 'Fehler beim Laden des Feeds.';
+    mainEl.appendChild(msg);
   }
-});
 }
 
-async function toggleLike(card, id){
-  if (!id) return;
-  try{
-    const r = await fetch('/gio/api/v1/likes/like_song.php', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ song_id: id })
-    });
-    const x = await r.json();
-    if (x?.ok){
-      const btn = card.querySelector('.btn.like');
-      const c   = card.querySelector('.count');
-      if (btn) btn.textContent = x.data.liked ? '♥' : '♡';
-      if (c)   c.textContent   = String(x.data.count ?? 0);
+/* ---------- SEARCH VIEW (SQL) ---------- */
+async function loadSearch(route) {
+  if (!mainEl) mainEl = document.getElementById('gio-main');
+
+  const params = new URLSearchParams(route.query);
+  const q = params.get('q') || store.search.q || '';
+
+  const html = await fetch('/gio/views/search.php').then(r => r.text());
+  mainEl.innerHTML = html;
+
+  const label = document.getElementById('search-label');
+  if (label) label.textContent = q;
+
+  if (q.length < 2) return;
+
+  try {
+    store.search.loading = true;
+
+    // API liefert {query,type,songs,artists,releases,page}
+    const data = await api.search({ q, type: 'all', limit: 20, offset: 0 });
+
+    store.search.results = data;
+    store.search.loading = false;
+
+    // Songs als SongCards rendern
+    const songs = (data.songs || []).map(s => ({
+      id: s.id,
+      title: s.title,
+      artist: s.artist_name || '',
+      audio_url: s.audio_url || '/gio/assets/audio/demo_song.mp3', // bis echte URLs vorhanden sind
+      cover_url: s.cover_url || '/gio/assets/img/placeholder.jpg',
+      duration: toMMSS(s.duration_sec),
+    }));
+    renderSongCards(document.getElementById('search-songs'), songs);
+
+    // Artists / Releases einfach listen
+    const others = document.getElementById('search-others');
+    if (others) {
+      const a = (data.artists || []).map(x => `* ${esc(x.name)} ${esc(x.genre || '')}`).join('\n') || '* keine Artists';
+      const r = (data.releases || []).map(x => `* ${esc(x.title)} ${esc(x.type || '')}`).join('\n') || '* keine Releases';
+      others.innerHTML = `
+#### Artists
+
+${escHtml(a)}
+#### Releases
+
+${escHtml(r)}
+`;
     }
-  }catch(_e){}
+
+    // Like-Counts für Suchsongs
+    const ids = songs.map(s => s.id);
+    if (ids.length) {
+      const counts = await api.likeCounts(ids);
+      for (const [id, c] of Object.entries(counts)) {
+        const el = document.querySelector(`.songcard[data-id="${id}"] .like-count`);
+        if (el) el.textContent = String(c);
+      }
+    }
+  } catch (err) {
+    store.search.loading = false;
+    console.error('Search Error', err); // console
+    const el = document.getElementById('search-songs');
+    if (el) el.innerHTML = '<p class="error">Fehler bei der Suche.</p>';
+  }
 }
 
-async function preloadLikeCounts(list){
-  const ids = list.map(x => x?.id).filter(Boolean).join(',');
-  if (!ids) return;
-  try{
-    const r = await fetch(`/gio/api/v1/likes/like_song_count.php?ids=${ids}`);
-    const x = await r.json();
-    if (!x?.ok) return;
-    for (const [id, count] of Object.entries(x.data)){
-      const el = document.querySelector(`.song-card[data-id="${cssq(id)}"] .count`);
-      if (el) el.textContent = String(count);
-    }
-  }catch(_e){}
+/* ---------- Router ---------- */
+async function render(route) {
+  if (!mainEl) mainEl = document.getElementById('gio-main');
+
+  if (route.name === 'home') {
+    await loadHome();
+    return;
+  }
+
+  if (route.name === 'search') {
+    await loadSearch(route);
+    return;
+  }
+
+  // Fallback
+  Router.navigateTo('#/home');
+}
+
+/* ---------- Init ---------- */
+function mainInit() {
+  mainEl = document.getElementById('gio-main');
+  mountShellBindings();
+  initPlayer();
+  Router.initRouter(render);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mainInit);
+} else {
+  mainInit();
 }
 
 /* ---------- Utils ---------- */
-function esc(v){
-  return String(v)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+function toMMSS(sec) {
+  const n = Number(sec || 0);
+  const m = Math.floor(n / 60);
+  const s = Math.floor(n % 60);
+  if (m === 0 && s === 0) return '';
+  return `${String(m).padStart(1, '0')}:${String(s).padStart(2, '0')}`;
 }
-function cssq(v){ return String(v).replace(/"/g,'\\"'); }
-function toInt(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+function esc(v) {
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+function escHtml(txt) {
+  // ersetzt Zeilenumbrüche in <pre>-ähnlicher Darstellung
+  return `<pre>${esc(txt)}</pre>`;
+}
+
+// Für manuelle Tests
+window.loadHome = loadHome;
